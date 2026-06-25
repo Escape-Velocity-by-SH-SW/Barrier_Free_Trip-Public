@@ -41,11 +41,7 @@
 지원하는 이동 조건은 다음과 같습니다.
 
 ```typescript
-type TravelerType =
-  | "POWER_WHEELCHAIR"
-  | "MANUAL_WHEELCHAIR"
-  | "STROLLER"
-  | "ELDERLY_COMPANION";
+type TravelerType = "POWER_WHEELCHAIR" | "MANUAL_WHEELCHAIR" | "STROLLER" | "ELDERLY_COMPANION";
 ```
 
 예:
