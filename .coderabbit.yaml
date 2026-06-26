@@ -1,0 +1,10 @@
+# .coderabbit.yaml
+language: ko-KR
+ 
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - develop
+  profile: assertive
