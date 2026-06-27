@@ -5,6 +5,7 @@
 이 프로젝트는 이동약자의 관광지 방문 준비를 돕는 TypeScript 기반 MCP 서버다.
 
 제공 정보:
+
 - 무장애 편의시설
 - 기상청 단기예보
 - 주변 전동휠체어 충전소
@@ -30,6 +31,11 @@ Tool은 API 단위가 아니라 사용자 의도 단위다.
 
 ```text
 src/
+├─ main.ts
+├─ bootstrap/
+│  ├─ create-server.ts
+│  ├─ create-container.ts
+│  └─ register-tools.ts
 ├─ mcp/tools/
 ├─ application/
 │  ├─ ports/
@@ -44,10 +50,49 @@ src/
 
 현재 디렉터리 구조를 유지한다. 임의로 새 계층을 추가하지 않는다.
 
+## Runtime Bootstrap
+
+`src/main.ts`는 stdio 기반 MCP 서버 실행 진입점이다.
+
+실행 순서:
+
+```text
+createContainer()
+→ createServer()
+→ registerTools()
+→ StdioServerTransport
+→ server.connect()
+```
+
+`src/bootstrap/`은 실행 조립 레이어다.
+
+- `create-server.ts`: `McpServer` 인스턴스 생성만 담당한다.
+- `create-container.ts`: 향후 Service, Repository, Adapter 주입 지점이다.
+- `register-tools.ts`: 모든 MCP Tool 등록 순서를 한 곳에서 관리한다.
+
+Bootstrap 레이어에는 비즈니스 로직, 외부 API 호출, Adapter 구현을 넣지 않는다.
+stdio 서버에서 stdout 로그는 MCP 메시지와 충돌할 수 있으므로 사용하지 않는다.
+시작 로그와 치명적 오류 로그는 `console.error()`만 사용한다.
+
 ## Dependency Direction
 
 ```text
-MCP Tool
+main/bootstrap
+→ MCP Tool
+→ Application Service
+→ Repository Port
+← Infrastructure Adapter
+→ External API
+```
+
+런타임 조립 기준:
+
+```text
+main.ts
+→ bootstrap/create-container.ts
+→ bootstrap/create-server.ts
+→ bootstrap/register-tools.ts
+→ MCP Tool
 → Application Service
 → Repository Port
 ← Infrastructure Adapter
@@ -55,13 +100,20 @@ MCP Tool
 ```
 
 허용:
+
+- `main → bootstrap`
+- `bootstrap → mcp`
 - `mcp → application`
 - `application → domain`
 - `infrastructure → application/ports`
 - `infrastructure → domain`
 
 금지:
+
 - `domain → infrastructure`
+- `domain → mcp`
+- `application → mcp`
+- `bootstrap → infrastructure 직접 생성` 단, 명시적인 DI 조립 작업은 예외
 - `application → concrete adapter`
 - `application → external DTO`
 - Tool에서 다른 Tool 호출
@@ -70,35 +122,58 @@ MCP Tool
 
 ## Responsibilities
 
+### Bootstrap
+
+- MCP 서버 생성
+- 의존성 컨테이너 생성
+- Tool 일괄 등록
+- stdio transport 연결
+- 실행 로그와 치명적 오류 처리
+- 비즈니스 로직 금지
+- 외부 API 호출 금지
+
 ### MCP Tool
+
 - Tool description
 - Zod input/output Schema
 - Application Service 호출
 - `structuredContent` 반환
+- read-only annotation
 - 비즈니스 로직 금지
 
+현재 Service 연결 전 단계에서는 연결 확인용 Mock Handler를 둘 수 있다.
+Mock 데이터는 실제 공공 API 결과가 아니며, 응답 `cautions` 또는 text content에 Mock임을 명확히 남긴다.
+Mock Handler는 실제 Service 연결 시 제거하거나 Service 호출로 교체한다.
+
+미구현 Tool은 등록 상태를 유지할 수 있으나 호출 시 `NOT_IMPLEMENTED`에 해당하는 안전한 오류를 반환한다.
+
 ### Application Service
+
 - 사용자 기능 수행
 - Repository Port 호출
 - 결과 조합과 부분 실패 처리
 
 ### Repository Port
+
 - 외부 데이터 접근 계약
 - API URL, 인증키, 외부 필드명 노출 금지
 
 ### Infrastructure
+
 - Client: HTTP 요청
 - DTO: 외부 응답 타입
 - Mapper: DTO를 내부 타입으로 변환
 - Adapter: Repository Port 구현
 
 ### Domain
+
 - 핵심 타입과 결과 모델
 - MCP SDK, HTTP, 환경변수, 외부 DTO 의존 금지
 
 ## Main Components
 
 ### DestinationResolver
+
 장소명을 확정된 `Destination`으로 변환한다.
 
 - `/searchKeyword2` 호출
@@ -106,9 +181,10 @@ MCP Tool
 - 결과 없음 처리
 - 복수 후보 처리
 - `contentId`, 주소, 위경도 반환, 관광지 사진
-- 첫 번째 검색 결과를 무조건 선택하지 않음 
+- 첫 번째 검색 결과를 무조건 선택하지 않음
 
 ### VisitAssessmentService
+
 종합 요청 오케스트레이터다.
 
 ```text
@@ -183,12 +259,14 @@ src/mcp/tools/*.tool.ts의 Schema
 ## Agent Workflow
 
 작업 전:
+
 1. `README.md`, `AGENTS.md`, `SKILL.md`, `RULES.md` 확인
 2. 관련 Domain과 Port 확인
 3. 기존 타입 재사용 여부 확인
 4. 변경 범위 최소화
 
 작업 후:
+
 1. 타입 검사
 2. 관련 테스트
 3. 린트

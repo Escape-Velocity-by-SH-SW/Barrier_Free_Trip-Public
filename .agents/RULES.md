@@ -64,6 +64,7 @@
 ## Client
 
 담당:
+
 - URL과 Query Parameter
 - 인증키
 - HTTP 요청
@@ -72,6 +73,7 @@
 - 원본 DTO 반환
 
 담당하지 않음:
+
 - 사용자 유의사항
 - 위험 판단
 - 종합 결과 조합
@@ -128,6 +130,7 @@ console.error("[weather] request failed");
 ```
 
 로그 금지 항목:
+
 - API Key
 - 인증 Query
 - 전체 요청 URL
