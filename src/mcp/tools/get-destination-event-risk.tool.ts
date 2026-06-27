@@ -1,4 +1,7 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
+
+import type { AppContainer } from "../../bootstrap/create-container.js";
 
 export const getDestinationEventRiskInputSchema = {
   destination: z.string().trim().min(1),
@@ -36,3 +39,32 @@ export const getDestinationEventRiskOutputSchema = {
   ),
   cautions: z.array(z.string()),
 };
+
+export function registerGetDestinationEventRiskTool(
+  server: McpServer,
+  container: AppContainer,
+): void {
+  void container;
+
+  server.registerTool(
+    "get_destination_event_risk",
+    {
+      title: "Get Destination Event Risk",
+      description: "방문일에 관광지 주변 축제를 조회하고 행사 기반 혼잡 위험을 반환합니다.",
+      inputSchema: getDestinationEventRiskInputSchema,
+      outputSchema: getDestinationEventRiskOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    () => ({
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: "NOT_IMPLEMENTED: 축제 API와 Application Service 연결은 아직 구현되지 않았습니다.",
+        },
+      ],
+    }),
+  );
+}

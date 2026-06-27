@@ -1,4 +1,7 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
+
+import type { AppContainer } from "../../bootstrap/create-container.js";
 
 export const findNearbyWheelchairChargersInputSchema = {
   destination: z.string().trim().min(1),
@@ -36,3 +39,32 @@ export const findNearbyWheelchairChargersOutputSchema = {
   ),
   cautions: z.array(z.string()),
 };
+
+export function registerFindNearbyWheelchairChargersTool(
+  server: McpServer,
+  container: AppContainer,
+): void {
+  void container;
+
+  server.registerTool(
+    "find_nearby_wheelchair_chargers",
+    {
+      title: "Find Nearby Wheelchair Chargers",
+      description: "관광지 주변 전동휠체어 급속충전소를 조회합니다.",
+      inputSchema: findNearbyWheelchairChargersInputSchema,
+      outputSchema: findNearbyWheelchairChargersOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    () => ({
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: "NOT_IMPLEMENTED: 충전소 API와 Application Service 연결은 아직 구현되지 않았습니다.",
+        },
+      ],
+    }),
+  );
+}

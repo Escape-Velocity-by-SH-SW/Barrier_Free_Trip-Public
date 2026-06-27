@@ -1,0 +1,23 @@
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+
+import { createContainer } from "./bootstrap/create-container.js";
+import { createServer } from "./bootstrap/create-server.js";
+import { registerTools } from "./bootstrap/register-tools.js";
+
+async function main(): Promise<void> {
+  const container = createContainer();
+  const server = createServer();
+
+  registerTools(server, container);
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+
+  console.error("[accessible-visit-mcp] stdio server started");
+}
+
+main().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : "Unknown startup error";
+  console.error("[accessible-visit-mcp] fatal startup error", message);
+  process.exitCode = 1;
+});
