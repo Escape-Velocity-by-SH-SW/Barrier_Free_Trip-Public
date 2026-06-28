@@ -1,5 +1,7 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 
+import type { AppContainer } from "../../bootstrap/create-container.js";
 import { travelerTypes } from "../../domain/accessibility.js";
 
 const evidenceItemSchema = z.object({
@@ -38,3 +40,32 @@ export const getDestinationAccessibilityOutputSchema = {
   cautions: z.array(z.string()),
   unknowns: z.array(z.string()),
 };
+
+export function registerGetDestinationAccessibilityTool(
+  server: McpServer,
+  container: AppContainer,
+): void {
+  void container;
+
+  server.registerTool(
+    "get_destination_accessibility",
+    {
+      title: "Get Destination Accessibility",
+      description: "관광지의 무장애 편의시설 정보를 조회합니다.",
+      inputSchema: getDestinationAccessibilityInputSchema,
+      outputSchema: getDestinationAccessibilityOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    () => ({
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: "NOT_IMPLEMENTED: 관광공사 접근성 API와 Application Service 연결은 아직 구현되지 않았습니다.",
+        },
+      ],
+    }),
+  );
+}

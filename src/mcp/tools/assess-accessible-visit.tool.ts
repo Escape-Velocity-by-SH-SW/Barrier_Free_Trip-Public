@@ -1,5 +1,7 @@
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 
+import type { AppContainer } from "../../bootstrap/create-container.js";
 import { travelerTypes } from "../../domain/accessibility.js";
 
 export const assessAccessibleVisitInputSchema = {
@@ -57,3 +59,33 @@ export const assessAccessibleVisitOutputSchema = {
   ),
   phoneCheckQuestions: z.array(z.string()),
 };
+
+export function registerAssessAccessibleVisitTool(
+  server: McpServer,
+  container: AppContainer,
+): void {
+  void container;
+
+  server.registerTool(
+    "assess_accessible_visit",
+    {
+      title: "Assess Accessible Visit",
+      description:
+        "편의시설, 날씨, 충전소, 축제 정보를 함께 조회하여 종합 방문 유의사항을 반환합니다.",
+      inputSchema: assessAccessibleVisitInputSchema,
+      outputSchema: assessAccessibleVisitOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    () => ({
+      isError: true,
+      content: [
+        {
+          type: "text",
+          text: "NOT_IMPLEMENTED: 종합 방문 평가 Application Service 연결은 아직 구현되지 않았습니다.",
+        },
+      ],
+    }),
+  );
+}
