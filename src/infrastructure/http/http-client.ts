@@ -62,7 +62,11 @@ export class FetchHttpClient implements HttpClient {
     const url = buildUrl(this.baseUrl, options.path, options.query);
     const abortController = new AbortController();
     const timeoutMs = options.timeoutMs ?? this.defaultTimeoutMs;
-    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      abortController.abort();
+    }, timeoutMs);
     const removeAbortListener = this.forwardAbortSignal(options.signal, abortController);
 
     try {
@@ -82,7 +86,7 @@ export class FetchHttpClient implements HttpClient {
 
       return response;
     } catch (error) {
-      throw this.normalizeRequestError(error, abortController.signal.aborted);
+      throw this.normalizeRequestError(error, timedOut);
     } finally {
       clearTimeout(timeoutId);
       removeAbortListener();
@@ -131,12 +135,12 @@ export class FetchHttpClient implements HttpClient {
     });
   }
 
-  private normalizeRequestError(error: unknown, wasAborted: boolean): Error {
+  private normalizeRequestError(error: unknown, wasTimedOut: boolean): Error {
     if (error instanceof HttpRequestError) {
       return error;
     }
 
-    if (wasAborted) {
+    if (wasTimedOut) {
       return new HttpRequestError({
         kind: "TIMEOUT",
         message: "HTTP request timed out.",
