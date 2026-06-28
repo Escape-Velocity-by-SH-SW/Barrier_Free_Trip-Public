@@ -1,4 +1,3 @@
-import { GetPromptRequestParamsSchema } from "@modelcontextprotocol/sdk/types";
 import { HttpRequestError, getHttpErrorKind } from "./http-error.js";
 import { buildUrl, type HttpQueryParams } from "./url.js";
 
