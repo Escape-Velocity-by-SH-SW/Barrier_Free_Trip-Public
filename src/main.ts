@@ -17,7 +17,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unknown startup error";
-  console.error("[accessible-visit-mcp] fatal startup error", message);
+  if (error instanceof Error) {
+    console.error("[accessible-visit-mcp] fatal startup error", error);
+  } else {
+    console.error("[accessible-visit-mcp] fatal startup error", String(error));
+  }
   process.exitCode = 1;
 });
