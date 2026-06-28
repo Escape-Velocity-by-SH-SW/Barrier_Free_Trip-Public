@@ -55,6 +55,10 @@ export function getHttpErrorKind(status: number): HttpErrorKind {
     return "NOT_FOUND";
   }
 
+  if (status === 408) {
+    return "TIMEOUT";
+  }
+
   if (status === 429) {
     return "RATE_LIMITED";
   }
