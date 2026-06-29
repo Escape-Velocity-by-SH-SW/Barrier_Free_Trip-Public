@@ -72,4 +72,43 @@ describe("FetchHttpClient", () => {
       kind: "NETWORK_ERROR",
     });
   });
+
+  it("does not classify caller cancellation as timeout when the timeout fires later", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const callerController = new AbortController();
+      let rejectFetch: ((reason?: unknown) => void) | undefined;
+      const fetchFn = vi.fn<typeof fetch>().mockImplementation(
+        () =>
+          new Promise<Response>((_resolve, reject) => {
+            rejectFetch = reject;
+          }),
+      );
+      const client = new FetchHttpClient({ baseUrl: "https://example.test", fetchFn });
+
+      const request = client.requestJson({
+        path: "/weather",
+        timeoutMs: 10,
+        signal: callerController.signal,
+      });
+
+      callerController.abort(new Error("caller cancelled"));
+      await vi.advanceTimersByTimeAsync(10);
+
+      expect(rejectFetch).toBeDefined();
+
+      if (rejectFetch === undefined) {
+        throw new Error("fetch mock was not called.");
+      }
+
+      rejectFetch(new Error("caller cancelled"));
+
+      await expect(request).rejects.toMatchObject({
+        kind: "NETWORK_ERROR",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
