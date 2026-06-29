@@ -30,11 +30,27 @@ export const getDestinationWeatherOutputSchema = {
       temperatureCelsius: z.number().optional(),
       precipitationProbabilityPercent: z.number().min(0).max(100).optional(),
       precipitationType: z
-        .enum(["NONE", "RAIN", "RAIN_SNOW", "SNOW", "SHOWER", "UNKNOWN"])
+        .enum([
+          "NONE",
+          "RAIN",
+          "RAIN_SNOW",
+          "SNOW",
+          "SHOWER",
+          "RAINDROP",
+          "RAINDROP_SNOW_FLURRY",
+          "SNOW_FLURRY",
+          "UNKNOWN",
+        ])
         .optional(),
       precipitationAmountMm: z.number().optional(),
+      precipitationAmountDescription: z.string().optional(),
       windSpeedMps: z.number().optional(),
+      windDirectionDegree: z.number().min(0).max(360).optional(),
+      windDirectionText: z.string().optional(),
+      eastWestWindComponentMps: z.number().optional(),
+      northSouthWindComponentMps: z.number().optional(),
       humidityPercent: z.number().optional(),
+      lightningRisk: z.enum(["NONE", "POSSIBLE", "UNKNOWN"]).optional(),
       skyCondition: z.enum(["CLEAR", "CLOUDY", "OVERCAST", "UNKNOWN"]).optional(),
     }),
   ),
