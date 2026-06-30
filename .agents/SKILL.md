@@ -91,20 +91,22 @@ Tool: `find_nearby_wheelchair_chargers`
 
 순서:
 
-1. Destination 좌표 조회
-2. 충전소 API 호출
-3. 좌표 정규화
-4. Haversine 거리 계산
-5. 반경 필터 및 거리순 정렬
-6. Service 유의사항 생성
-7. Tool 연결
-8. 테스트
+1. Destination 주소와 좌표 확인
+2. 주소에서 시도명·시군구명 추출
+3. 충전소 API 호출
+4. 좌표 정규화
+5. Haversine 거리 계산
+6. 거리순 정렬 후 상위 결과 선택
+7. Service 유의사항 생성
+8. Tool 연결
+9. 테스트
 
 주의:
 
 - 실시간 상태는 `UNKNOWN`
 - 좌표 없는 데이터 처리
 - 없음과 실패 구분
+- Resolver 연동 전에는 MCP Inspector 검증을 위해 Destination 값을 수동 입력받을 수 있다.
 
 ## Festival Risk
 
