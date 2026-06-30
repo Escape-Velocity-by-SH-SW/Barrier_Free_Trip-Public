@@ -2,27 +2,21 @@
 import type { Destination } from "./destination.js";
 
 export interface ChargerSourceData {
-  id: string;
   name: string;
   address?: string;
-  installationLocation?: string;
+  installationLocationDescription?: string;
   latitude?: number;
   longitude?: number;
-  operatingHours?: string;
-  simultaneousUseCount?: number;
-  managingOrganization?: string;
   phoneNumber?: string;
-  referenceDate?: string;
+  managingOrganization?: string; // 관리기관명
+  referenceDate?: string; // 데이터 기준일자
 }
 
 export interface ChargerSummary {
-  id: string;
   name: string;
   address?: string;
-  installationLocation?: string;
+  installationLocationDescription?: string;
   distanceKm: number;
-  operatingHours?: string;
-  simultaneousUseCount?: number;
   managingOrganization?: string;
   phoneNumber?: string;
   referenceDate?: string;
@@ -32,7 +26,6 @@ export interface ChargerSummary {
 export interface NearbyWheelchairChargerResult {
   status: "SUCCESS" | "NO_DATA" | "FAILED" | "NOT_APPLICABLE";
   destination: Destination;
-  radiusKm: number;
   chargers: ChargerSummary[];
-  cautions: string[];
+  cautions: string[]; // 필요한가?
 }
