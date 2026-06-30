@@ -29,6 +29,10 @@ describe("KoreaTourApiClient", () => {
   it("calls searchKeyword2 with common and search query parameters", async () => {
     const response: SearchKeywordResponseDto = {
       response: {
+        header: {
+          resultCode: "0000",
+          resultMsg: "OK",
+        },
         body: {
           totalCount: "0",
         },
@@ -79,6 +83,31 @@ describe("KoreaTourApiClient", () => {
 
     await expect(client.searchKeyword({ keyword: "경복궁" })).rejects.toMatchObject({
       kind: "INVALID_RESPONSE",
+    });
+  });
+
+  it("rejects Tour API error envelopes before mapping them as empty results", async () => {
+    const httpClient = new CapturingHttpClient({
+      response: {
+        header: {
+          resultCode: "30",
+          resultMsg: "SERVICE KEY IS NOT REGISTERED ERROR.",
+        },
+        body: {
+          items: "",
+          totalCount: "0",
+        },
+      },
+    });
+    const client = new KoreaTourApiClient(httpClient, {
+      serviceKey: "test-service-key",
+      mobileOs: "ETC",
+      mobileApp: "BarrierFreeTrip",
+    });
+
+    await expect(client.searchKeyword({ keyword: "경복궁" })).rejects.toMatchObject({
+      kind: "UNKNOWN",
+      message: "Tour API returned a non-success result code: 30.",
     });
   });
 });

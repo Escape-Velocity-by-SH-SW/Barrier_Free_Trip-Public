@@ -3,6 +3,8 @@ import type { HttpClient } from "../http/http-client.js";
 import type { HttpQueryParams } from "../http/url.js";
 import type { SearchKeywordResponseDto } from "./korea-tour-api.dto.js";
 
+const tourApiSuccessResultCode = "0000";
+
 export interface KoreaTourApiClientOptions {
   serviceKey: string;
   mobileOs: string;
@@ -77,9 +79,61 @@ function parseSearchKeywordResponse(response: unknown): SearchKeywordResponseDto
     });
   }
 
+  const resultCode = getTourApiResultCode(response);
+
+  if (resultCode !== undefined && resultCode !== tourApiSuccessResultCode) {
+    throw new HttpRequestError({
+      kind: "UNKNOWN",
+      message: `Tour API returned a non-success result code: ${resultCode}.`,
+      cause: {
+        resultCode,
+        resultMsg: getTourApiResultMessage(response),
+      },
+    });
+  }
+
   return response;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getTourApiResultCode(response: Record<string, unknown>): string | undefined {
+  const header = getTourApiHeader(response);
+  const resultCode = header?.resultCode;
+
+  if (typeof resultCode === "string") {
+    const normalizedCode = resultCode.trim();
+    return normalizedCode.length > 0 ? normalizedCode : undefined;
+  }
+
+  if (typeof resultCode === "number" && Number.isFinite(resultCode)) {
+    return String(resultCode);
+  }
+
+  return undefined;
+}
+
+function getTourApiResultMessage(response: Record<string, unknown>): string | undefined {
+  const header = getTourApiHeader(response);
+  const resultMsg = header?.resultMsg;
+
+  if (typeof resultMsg !== "string") {
+    return undefined;
+  }
+
+  const normalizedMessage = resultMsg.trim();
+  return normalizedMessage.length > 0 ? normalizedMessage : undefined;
+}
+
+function getTourApiHeader(response: Record<string, unknown>): Record<string, unknown> | undefined {
+  const responseBody = response.response;
+
+  if (!isRecord(responseBody)) {
+    return undefined;
+  }
+
+  const header = responseBody.header;
+  return isRecord(header) ? header : undefined;
 }
