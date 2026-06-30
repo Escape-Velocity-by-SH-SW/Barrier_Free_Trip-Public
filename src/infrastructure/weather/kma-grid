@@ -1,0 +1,108 @@
+export interface Coordinates {
+  latitude: number;
+  longitude: number;
+}
+
+export interface KmaGrid {
+  nx: number;
+  ny: number;
+}
+
+interface LamcParameter {
+  re: number; // 사용할 지구반경 [km]
+  grid: number; // 격자간격 [km]
+  slat1: number; // 표준위도 1 [degree]
+  slat2: number; // 표준위도 2 [degree]
+  olon: number; // 기준점 경도 [degree]
+  olat: number; // 기준점 위도 [degree]
+  xo: number; // 기준점 X좌표 [grid]
+  yo: number; // 기준점 Y좌표 [grid]
+}
+
+const KMA_GRID_CONFIG: LamcParameter = {
+  re: 6371.00877,
+  grid: 5.0,
+  slat1: 30.0,
+  slat2: 60.0,
+  olon: 126.0,
+  olat: 38.0,
+  xo: 210 / 5.0,
+  yo: 675 / 5.0,
+};
+
+export function convertLatLngToKmaGrid(coordinates: Coordinates): KmaGrid {
+  validateCoordinates(coordinates);
+
+  const { latitude, longitude } = coordinates;
+  const { x, y } = lambertConformalConicProjection(
+    longitude,
+    latitude,
+    KMA_GRID_CONFIG,
+  );
+
+  return {
+    nx: Math.floor(x + 1.5),
+    ny: Math.floor(y + 1.5),
+  };
+}
+
+// 주어진 위도/경도가 정상범위인지 검사
+function validateCoordinates(coordinates: Coordinates): void {
+  const { latitude, longitude } = coordinates;
+
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+    throw new Error(`Invalid latitude: ${latitude}`);
+  }
+
+  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+    throw new Error(`Invalid longitude: ${longitude}`);
+  }
+}
+
+// 위경도를 기상청 격자 좌표계의 x,y값으로 변환
+function lambertConformalConicProjection(
+  longitude: number,
+  latitude: number,
+  map: LamcParameter,
+): { x: number; y: number } {
+  const pi = Math.asin(1.0) * 2.0;
+  const degreeToRadian = pi / 180.0;
+
+  const re = map.re / map.grid;
+  const slat1 = map.slat1 * degreeToRadian;
+  const slat2 = map.slat2 * degreeToRadian;
+  const olon = map.olon * degreeToRadian;
+  const olat = map.olat * degreeToRadian;
+
+  let sn =
+    Math.tan(pi * 0.25 + slat2 * 0.5) /
+    Math.tan(pi * 0.25 + slat1 * 0.5);
+
+  sn = Math.log(Math.cos(slat1) / Math.cos(slat2)) / Math.log(sn);
+
+  let sf = Math.tan(pi * 0.25 + slat1 * 0.5);
+  sf = (Math.pow(sf, sn) * Math.cos(slat1)) / sn;
+
+  let ro = Math.tan(pi * 0.25 + olat * 0.5);
+  ro = (re * sf) / Math.pow(ro, sn);
+
+  let ra = Math.tan(pi * 0.25 + latitude * degreeToRadian * 0.5);
+  ra = (re * sf) / Math.pow(ra, sn);
+
+  let theta = longitude * degreeToRadian - olon;
+
+  if (theta > pi) {
+    theta -= 2.0 * pi;
+  }
+
+  if (theta < -pi) {
+    theta += 2.0 * pi;
+  }
+
+  theta *= sn;
+
+  return {
+    x: ra * Math.sin(theta) + map.xo,
+    y: ro - ra * Math.cos(theta) + map.yo,
+  };
+}
