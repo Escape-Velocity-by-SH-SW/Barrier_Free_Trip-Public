@@ -4,6 +4,7 @@ import type {
   DestinationCandidate,
   DestinationResolutionResult,
 } from "../../domain/destination.js";
+import { normalizeDestinationName } from "../../domain/destination-name.js";
 
 export class DestinationResolver {
   constructor(private readonly repository: TourismAccessibilityRepository) {}
@@ -55,8 +56,4 @@ function toDestination(candidate: DestinationCandidate): Destination {
   void matchType;
 
   return destination;
-}
-
-function normalizeDestinationName(value: string): string {
-  return value.trim().replaceAll(/\s+/g, "").toLowerCase();
 }

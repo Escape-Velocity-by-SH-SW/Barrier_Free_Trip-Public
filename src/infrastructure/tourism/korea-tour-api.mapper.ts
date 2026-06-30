@@ -1,4 +1,5 @@
 import type { DestinationCandidate } from "../../domain/destination.js";
+import { normalizeDestinationName } from "../../domain/destination-name.js";
 import type {
   SearchKeywordItemDto,
   SearchKeywordResponseDto,
@@ -115,8 +116,4 @@ function joinAddress(
   }
 
   return addressParts.join(" ");
-}
-
-function normalizeDestinationName(value: string): string {
-  return value.trim().replaceAll(/\s+/g, "").toLowerCase();
 }
