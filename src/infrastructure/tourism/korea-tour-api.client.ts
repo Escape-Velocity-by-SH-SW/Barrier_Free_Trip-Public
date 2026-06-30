@@ -130,10 +130,10 @@ function getTourApiResultMessage(response: Record<string, unknown>): string | un
 function getTourApiHeader(response: Record<string, unknown>): Record<string, unknown> | undefined {
   const responseBody = response.response;
 
-  if (!isRecord(responseBody)) {
-    return undefined;
+  if (isRecord(responseBody) && isRecord(responseBody.header)) {
+    return responseBody.header;
   }
 
-  const header = responseBody.header;
+  const header = response.header;
   return isRecord(header) ? header : undefined;
 }

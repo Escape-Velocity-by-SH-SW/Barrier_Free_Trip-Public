@@ -88,15 +88,13 @@ describe("KoreaTourApiClient", () => {
 
   it("rejects Tour API error envelopes before mapping them as empty results", async () => {
     const httpClient = new CapturingHttpClient({
-      response: {
-        header: {
-          resultCode: "30",
-          resultMsg: "SERVICE KEY IS NOT REGISTERED ERROR.",
-        },
-        body: {
-          items: "",
-          totalCount: "0",
-        },
+      header: {
+        resultCode: "30",
+        resultMsg: "SERVICE KEY IS NOT REGISTERED ERROR.",
+      },
+      body: {
+        items: "",
+        totalCount: "0",
       },
     });
     const client = new KoreaTourApiClient(httpClient, {
