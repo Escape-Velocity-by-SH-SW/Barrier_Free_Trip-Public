@@ -1,7 +1,10 @@
 import { HttpRequestError } from "../http/http-error.js";
 import type { HttpClient } from "../http/http-client.js";
 import type { HttpQueryParams } from "../http/url.js";
-import type { SearchKeywordResponseDto } from "./korea-tour-api.dto.js";
+import type {
+  DetailWithTourResponseDto,
+  SearchKeywordResponseDto,
+} from "./korea-tour-api.dto.js";
 
 const tourApiSuccessResultCode = "0000";
 
@@ -23,6 +26,10 @@ export interface SearchKeywordRequest {
   arrange?: string;
   pageNo?: number;
   numOfRows?: number;
+}
+
+export interface DetailWithTourRequest {
+  contentId: string;
 }
 
 export class KoreaTourApiClient {
@@ -52,12 +59,21 @@ export class KoreaTourApiClient {
     return parseSearchKeywordResponse(response);
   }
 
+  async getDetailWithTour(request: DetailWithTourRequest): Promise<DetailWithTourResponseDto> {
+    const response = await this.httpClient.requestJson<unknown>({
+      path: "/detailWithTour2",
+      query: {
+        ...this.createCommonQuery(),
+        contentId: request.contentId,
+      },
+    });
+
+    return parseDetailWithTourResponse(response);
+  }
+
   private createSearchKeywordQuery(request: SearchKeywordRequest): HttpQueryParams {
     return {
-      serviceKey: this.serviceKey,
-      MobileOS: this.mobileOs,
-      MobileApp: this.mobileApp,
-      _type: "json",
+      ...this.createCommonQuery(),
       pageNo: request.pageNo ?? this.defaultPageNo,
       numOfRows: request.numOfRows ?? this.defaultNumOfRows,
       keyword: request.keyword,
@@ -69,9 +85,26 @@ export class KoreaTourApiClient {
       arrange: request.arrange,
     };
   }
+
+  private createCommonQuery(): HttpQueryParams {
+    return {
+      serviceKey: this.serviceKey,
+      MobileOS: this.mobileOs,
+      MobileApp: this.mobileApp,
+      _type: "json",
+    };
+  }
 }
 
 function parseSearchKeywordResponse(response: unknown): SearchKeywordResponseDto {
+  return validateTourApiResponse(response);
+}
+
+function parseDetailWithTourResponse(response: unknown): DetailWithTourResponseDto {
+  return validateTourApiResponse(response);
+}
+
+function validateTourApiResponse(response: unknown): Record<string, unknown> {
   if (!isRecord(response)) {
     throw new HttpRequestError({
       kind: "INVALID_RESPONSE",

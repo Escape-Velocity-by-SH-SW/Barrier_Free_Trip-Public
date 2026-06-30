@@ -1,5 +1,7 @@
+import type { AccessibilitySourceData } from "../../domain/accessibility.js";
 import type { DestinationCandidate } from "../../domain/destination.js";
 import type {
+  DetailWithTourResponseDto,
   SearchKeywordItemDto,
   SearchKeywordResponseDto,
   TourApiItemDto,
@@ -15,9 +17,30 @@ export function mapSearchKeywordResponseToDestinationCandidates(
     .filter((candidate): candidate is DestinationCandidate => candidate !== undefined);
 }
 
-function normalizeTourApiItems(
-  items: TourApiItemsDto<SearchKeywordItemDto> | "" | null | undefined,
-): SearchKeywordItemDto[] {
+export function mapDetailWithTourResponseToAccessibilitySourceData(
+  response: DetailWithTourResponseDto,
+): AccessibilitySourceData {
+  const item = normalizeTourApiItems(response.response?.body?.items).at(0);
+
+  if (item === undefined) {
+    return {};
+  }
+
+  return {
+    ...optionalField("parking", item.parking),
+    ...optionalField("route", item.route),
+    ...optionalField("entrance", item.exit),
+    ...optionalField("elevator", item.elevator),
+    ...optionalField("restroom", item.restroom),
+    ...optionalField("wheelchairRental", item.wheelchair),
+    ...optionalField("stroller", item.stroller),
+    ...optionalField("lactationRoom", item.lactationroom),
+  };
+}
+
+function normalizeTourApiItems<TItem>(
+  items: TourApiItemsDto<TItem> | "" | null | undefined,
+): TItem[] {
   if (items === undefined || items === null || items === "") {
     return [];
   }
@@ -31,7 +54,7 @@ function normalizeTourApiItems(
   return normalizeItem(item);
 }
 
-function normalizeItem(item: TourApiItemDto<SearchKeywordItemDto>): SearchKeywordItemDto[] {
+function normalizeItem<TItem>(item: TourApiItemDto<TItem>): TItem[] {
   return Array.isArray(item) ? item : [item];
 }
 
@@ -80,6 +103,19 @@ function normalizeText(value: string | null | undefined): string | undefined {
 
   const trimmedValue = value.trim();
   return trimmedValue.length > 0 ? trimmedValue : undefined;
+}
+
+function optionalField(
+  key: keyof AccessibilitySourceData,
+  value: string | null | undefined,
+): Partial<AccessibilitySourceData> {
+  const normalizedValue = normalizeText(value);
+
+  if (normalizedValue === undefined) {
+    return {};
+  }
+
+  return { [key]: normalizedValue };
 }
 
 function parseCoordinate(

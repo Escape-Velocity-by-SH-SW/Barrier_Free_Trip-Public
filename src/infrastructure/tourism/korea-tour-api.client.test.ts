@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { HttpClient, HttpRequestOptions } from "../http/http-client.js";
-import type { SearchKeywordResponseDto } from "./korea-tour-api.dto.js";
+import type {
+  DetailWithTourResponseDto,
+  SearchKeywordResponseDto,
+} from "./korea-tour-api.dto.js";
 import { KoreaTourApiClient } from "./korea-tour-api.client.js";
 
 class CapturingHttpClient implements HttpClient {
@@ -106,6 +109,44 @@ describe("KoreaTourApiClient", () => {
     await expect(client.searchKeyword({ keyword: "경복궁" })).rejects.toMatchObject({
       kind: "UNKNOWN",
       message: "Tour API returned a non-success result code: 30.",
+    });
+  });
+
+  it("calls detailWithTour2 with common and content query parameters", async () => {
+    const response: DetailWithTourResponseDto = {
+      response: {
+        header: {
+          resultCode: "0000",
+          resultMsg: "OK",
+        },
+        body: {
+          items: {
+            item: {
+              contentid: "126508",
+              parking: "장애인 주차장 있음",
+            },
+          },
+        },
+      },
+    };
+    const httpClient = new CapturingHttpClient(response);
+    const client = new KoreaTourApiClient(httpClient, {
+      serviceKey: "test-service-key",
+      mobileOs: "ETC",
+      mobileApp: "BarrierFreeTrip",
+    });
+
+    await expect(client.getDetailWithTour({ contentId: "126508" })).resolves.toBe(response);
+
+    expect(httpClient.lastRequest).toMatchObject({
+      path: "/detailWithTour2",
+      query: {
+        serviceKey: "test-service-key",
+        MobileOS: "ETC",
+        MobileApp: "BarrierFreeTrip",
+        _type: "json",
+        contentId: "126508",
+      },
     });
   });
 });
