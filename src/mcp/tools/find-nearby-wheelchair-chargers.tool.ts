@@ -3,9 +3,19 @@ import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
 
+// TODO: Resolver 연동 전 MCP Inspector 검증을 위한 임시 수동 입력이다.
+// 최종 구조에서는 destination 문자열을 DestinationResolver로 확정한 Destination 값으로 대체한다.
+const destinationInputSchema = z.object({
+  name: z.string().trim().min(1),
+  contentId: z.string().trim().min(1),
+  contentTypeId: z.string().trim().min(1),
+  address: z.string().trim().min(1),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+
 export const findNearbyWheelchairChargersInputSchema = {
-  destination: z.string().trim().min(1),
-  radiusKm: z.number().min(0.1).max(20).default(3),
+  destination: destinationInputSchema,
   visitDateTime: z.string().optional(),
 };
 
@@ -21,16 +31,12 @@ export const findNearbyWheelchairChargersOutputSchema = {
       longitude: z.number(),
     }),
   }),
-  radiusKm: z.number().positive(),
   chargers: z.array(
     z.object({
-      id: z.string(),
       name: z.string(),
       address: z.string().optional(),
-      installationLocation: z.string().optional(),
+      installationLocationDescription: z.string().optional(),
       distanceKm: z.number().nonnegative(),
-      operatingHours: z.string().optional(),
-      simultaneousUseCount: z.number().int().nonnegative().optional(),
       managingOrganization: z.string().optional(),
       phoneNumber: z.string().optional(),
       referenceDate: z.string().optional(),
@@ -44,8 +50,6 @@ export function registerFindNearbyWheelchairChargersTool(
   server: McpServer,
   container: AppContainer,
 ): void {
-  void container;
-
   server.registerTool(
     "find_nearby_wheelchair_chargers",
     {
@@ -57,14 +61,29 @@ export function registerFindNearbyWheelchairChargersTool(
         readOnlyHint: true,
       },
     },
-    () => ({
-      isError: true,
-      content: [
-        {
-          type: "text",
-          text: "NOT_IMPLEMENTED: 충전소 API와 Application Service 연결은 아직 구현되지 않았습니다.",
+    async (input) => {
+      const result = await container.services.chargerService.findNearbyChargers({
+        destination: {
+          name: input.destination.name,
+          contentId: input.destination.contentId,
+          contentTypeId: input.destination.contentTypeId,
+          address: input.destination.address,
+          coordinates: {
+            latitude: input.destination.latitude,
+            longitude: input.destination.longitude,
+          },
         },
-      ],
-    }),
+      });
+
+      return {
+        structuredContent: { ...result },
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    },
   );
 }
