@@ -4,27 +4,24 @@ import type {
   DestinationCandidate,
   DestinationResolutionResult,
 } from "../../domain/destination.js";
-import { normalizeDestinationName } from "../../domain/destination-name.js";
 
 export class DestinationResolver {
   constructor(private readonly repository: TourismAccessibilityRepository) {}
 
   async resolve(destinationName: string): Promise<DestinationResolutionResult> {
-    const normalizedDestinationName = normalizeDestinationName(destinationName);
+    const keyword = destinationName.trim();
 
-    if (normalizedDestinationName.length === 0) {
+    if (keyword.length === 0) {
       return { status: "NOT_FOUND" };
     }
 
-    const candidates = await this.repository.searchDestination(destinationName.trim());
+    const candidates = await this.repository.searchDestination(keyword);
 
     if (candidates.length === 0) {
       return { status: "NOT_FOUND" };
     }
 
-    const exactCandidates = candidates.filter(
-      (candidate) => candidate.normalizedName === normalizedDestinationName,
-    );
+    const exactCandidates = candidates.filter((candidate) => candidate.matchType === "EXACT");
     const exactCandidate = exactCandidates.at(0);
 
     if (exactCandidates.length === 1 && exactCandidate !== undefined) {
