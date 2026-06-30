@@ -20,6 +20,14 @@ describe("DestinationResolver", () => {
     await expect(resolver.resolve("경복궁")).resolves.toEqual({ status: "NOT_FOUND" });
   });
 
+  it("returns FAILED when the repository search rejects", async () => {
+    const testDouble = createFailingRepository();
+    const resolver = new DestinationResolver(testDouble.repository);
+
+    await expect(resolver.resolve("경복궁")).resolves.toEqual({ status: "FAILED" });
+    expect(testDouble.searchDestination).toHaveBeenCalledWith("경복궁");
+  });
+
   it("resolves a single exact candidate and strips candidate-only metadata", async () => {
     const testDouble = createRepository([createCandidate("경복궁", "경복궁", "EXACT")]);
     const resolver = new DestinationResolver(testDouble.repository);
@@ -94,6 +102,19 @@ interface RepositoryTestDouble {
 
 function createRepository(candidates: DestinationCandidate[]): RepositoryTestDouble {
   const searchDestination = vi.fn(() => Promise.resolve(candidates));
+  const getAccessibility = vi.fn(() => Promise.resolve({}));
+
+  return {
+    repository: {
+      searchDestination,
+      getAccessibility,
+    },
+    searchDestination,
+  };
+}
+
+function createFailingRepository(): RepositoryTestDouble {
+  const searchDestination = vi.fn(() => Promise.reject(new Error("search failed")));
   const getAccessibility = vi.fn(() => Promise.resolve({}));
 
   return {

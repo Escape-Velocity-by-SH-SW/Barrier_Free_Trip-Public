@@ -15,7 +15,13 @@ export class DestinationResolver {
       return { status: "NOT_FOUND" };
     }
 
-    const candidates = await this.repository.searchDestination(keyword);
+    let candidates: DestinationCandidate[];
+
+    try {
+      candidates = await this.repository.searchDestination(keyword);
+    } catch {
+      return { status: "FAILED" };
+    }
 
     if (candidates.length === 0) {
       return { status: "NOT_FOUND" };
