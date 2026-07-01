@@ -15,11 +15,13 @@ export class FestivalAdapter implements FestivalRepository {
 
     return festivals
       .filter((festival) => isActiveOnVisitDate(festival, query.visitDate))
-      .filter((festival) => isWithinRadius(festival, query.coordinates, query.radiusKm))
-      .sort(
-        (left, right) =>
-          getDistanceKm(left, query.coordinates) - getDistanceKm(right, query.coordinates),
-      );
+      .map((festival) => ({
+        festival,
+        distanceKm: getDistanceKm(festival, query.coordinates),
+      }))
+      .filter(({ festival, distanceKm }) => isWithinRadius(festival, distanceKm, query.radiusKm))
+      .sort((left, right) => left.distanceKm - right.distanceKm)
+      .map(({ festival }) => festival);
   }
 }
 
@@ -33,14 +35,14 @@ function isActiveOnVisitDate(festival: FestivalSourceData, visitDate: string): b
 
 function isWithinRadius(
   festival: FestivalSourceData,
-  coordinates: Coordinates,
+  distanceKm: number,
   radiusKm: number,
 ): boolean {
   if (festival.latitude === undefined || festival.longitude === undefined) {
     return false;
   }
 
-  return getDistanceKm(festival, coordinates) <= radiusKm;
+  return distanceKm <= radiusKm;
 }
 
 function getDistanceKm(festival: FestivalSourceData, coordinates: Coordinates): number {
