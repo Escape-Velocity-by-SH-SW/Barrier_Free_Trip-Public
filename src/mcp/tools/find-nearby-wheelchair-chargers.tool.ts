@@ -1,6 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
-
 import type { AppContainer } from "../../bootstrap/create-container.js";
 
 export const findNearbyWheelchairChargersInputSchema = {
