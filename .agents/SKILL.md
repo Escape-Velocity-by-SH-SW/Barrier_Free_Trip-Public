@@ -20,6 +20,8 @@ Domain 확인
 
 계약 변경이 필요하지 않다면 Domain과 Port를 먼저 수정하지 않는다.
 
+테스트 코드를 위한 `.Test` 파일을 생성하지 않는다. 테스트는 대상 파일과 같은 디렉터리에 `*.test.ts` 이름으로 작성한다.
+
 ## Destination Resolution
 
 관련 파일:
