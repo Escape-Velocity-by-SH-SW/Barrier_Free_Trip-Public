@@ -185,7 +185,14 @@ function getResultCode(response: Record<string, unknown>): string | undefined {
 
   if (typeof resultCode === "string") {
     const normalizedCode = resultCode.trim();
-    return normalizedCode.length > 0 ? normalizedCode : undefined;
+    
+    if(normalizedCode.length == 0) {
+      return undefined;
+    }
+
+    return /^\d+$/.test(normalizedCode)
+    ? normalizedCode.padStart(2, "0")
+    : normalizedCode;
   }
 
   if (typeof resultCode === "number" && Number.isFinite(resultCode)) {
