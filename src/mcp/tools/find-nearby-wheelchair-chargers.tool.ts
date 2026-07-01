@@ -1,12 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
-
 import type { AppContainer } from "../../bootstrap/create-container.js";
 
 export const findNearbyWheelchairChargersInputSchema = {
   destination: z.string().trim().min(1),
-  radiusKm: z.number().min(0.1).max(20).default(3),
-  visitDateTime: z.string().optional(),
 };
 
 export const findNearbyWheelchairChargersOutputSchema = {
@@ -21,16 +18,12 @@ export const findNearbyWheelchairChargersOutputSchema = {
       longitude: z.number(),
     }),
   }),
-  radiusKm: z.number().positive(),
   chargers: z.array(
     z.object({
-      id: z.string(),
       name: z.string(),
       address: z.string().optional(),
-      installationLocation: z.string().optional(),
+      installationLocationDescription: z.string().optional(),
       distanceKm: z.number().nonnegative(),
-      operatingHours: z.string().optional(),
-      simultaneousUseCount: z.number().int().nonnegative().optional(),
       managingOrganization: z.string().optional(),
       phoneNumber: z.string().optional(),
       referenceDate: z.string().optional(),
@@ -62,7 +55,7 @@ export function registerFindNearbyWheelchairChargersTool(
       content: [
         {
           type: "text",
-          text: "NOT_IMPLEMENTED: 충전소 API와 Application Service 연결은 아직 구현되지 않았습니다.",
+          text: "NOT_IMPLEMENTED: DestinationResolver 연동 후 충전소 조회가 가능합니다.",
         },
       ],
     }),

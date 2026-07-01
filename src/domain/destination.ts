@@ -3,7 +3,7 @@ export interface Coordinates {
   longitude: number;
 }
 
-export type DestinationResolutionStatus = "RESOLVED" | "NOT_FOUND" | "AMBIGUOUS";
+export type DestinationResolutionStatus = "RESOLVED" | "NOT_FOUND" | "AMBIGUOUS" | "FAILED";
 
 export interface Destination {
   name: string;
