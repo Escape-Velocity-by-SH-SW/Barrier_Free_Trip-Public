@@ -1,4 +1,3 @@
-import { normalize } from "path";
 import type { ChargerSourceData } from "../../domain/charger.js";
 import type { WheelchairChargerItemDto } from "./wheelchair-charger.dto.js";
 
@@ -62,7 +61,6 @@ function parseCoordinate(
   value: unknown,
   range: { readonly min: number; readonly max: number },
 ): number | undefined {
-  //const normalizedValue = normalizeText(value);
   const normalizedValue = typeof value == "number" ? value : normalizeText(value);
 
   if (normalizedValue === undefined) {
