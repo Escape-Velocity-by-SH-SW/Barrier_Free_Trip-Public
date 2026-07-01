@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { FestivalRepository } from "../ports/festival.repository.js";
 import type { Destination } from "../../domain/destination.js";
@@ -17,6 +17,10 @@ const destination: Destination = {
 };
 
 describe("FestivalRiskService", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("returns LOW risk with NO_DATA when there are no nearby festivals", async () => {
     const service = new FestivalRiskService(createRepository([]));
 
@@ -97,9 +101,14 @@ describe("FestivalRiskService", () => {
     });
   });
 
-  it("returns FAILED when the repository rejects", async () => {
+  it("returns FAILED and logs context when the repository rejects", async () => {
+    const error = Object.assign(new Error("festival lookup failed"), {
+      kind: "NETWORK_ERROR",
+      status: 503,
+    });
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const repository: FestivalRepository = {
-      findNearby: vi.fn(() => Promise.reject(new Error("festival lookup failed"))),
+      findNearby: vi.fn(() => Promise.reject(error)),
     };
     const service = new FestivalRiskService(repository);
 
@@ -113,6 +122,21 @@ describe("FestivalRiskService", () => {
       riskLevel: "UNKNOWN",
       festivals: [],
     });
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "[FestivalRiskService] failed to assess festival risk",
+      expect.objectContaining({
+        destination,
+        visitDate: "2026-06-15",
+        radiusKm: 3,
+        error: expect.objectContaining({
+          name: "Error",
+          message: "festival lookup failed",
+          kind: "NETWORK_ERROR",
+          status: 503,
+        }) as Record<string, unknown>,
+      }),
+    );
   });
 });
 
