@@ -67,4 +67,23 @@ describe("FestivalApiClient", () => {
       kind: "INVALID_RESPONSE",
     });
   });
+
+  it("rejects responses with non-array data as invalid API responses", async () => {
+    const httpClient = new CapturingHttpClient({
+      currentCount: 1,
+      data: {},
+      matchCount: 1,
+      page: 1,
+      perPage: 100,
+      totalCount: 1,
+    });
+    const client = new FestivalApiClient(httpClient, {
+      path: "/festival",
+      serviceKey: "test-service-key",
+    });
+
+    await expect(client.getFestivals()).rejects.toMatchObject({
+      kind: "INVALID_RESPONSE",
+    });
+  });
 });

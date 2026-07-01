@@ -51,10 +51,10 @@ export class FestivalApiClient {
 }
 
 function parseFestivalResponse(response: unknown): FestivalResponseDto {
-  if (!isRecord(response)) {
+  if (!isRecord(response) || !Array.isArray(response.data)) {
     throw new HttpRequestError({
       kind: "INVALID_RESPONSE",
-      message: "Festival API response body was not a JSON object.",
+      message: "Festival API response body did not match the expected shape.",
     });
   }
 
