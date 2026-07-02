@@ -115,7 +115,7 @@ function applyForecastCategory(forecast: ForecastAccumulator, item: KmaForecastI
 
 /** PCP 강수량 문자열을 Service 판단용 수치 대표값과 원문 설명으로 정규화한다. */
 function mapPrecipitationAmount(value: string | null): PrecipitationAmount | undefined {
-  if (value === null || value === "-" || value === "0") {
+  if (value === null || value === "-" || value === "0" || value === "강수없음") {
     return {
       amountMm: 0,
       description: "강수없음",
