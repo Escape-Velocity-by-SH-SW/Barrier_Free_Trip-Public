@@ -81,12 +81,14 @@ function mapSearchKeywordItemToDestinationCandidate(
   const normalizedKeyword = normalizeDestinationName(keyword);
   const normalizedName = normalizeDestinationName(name);
   const address = joinAddress(item.addr1, item.addr2);
+  const imageUrl = normalizeText(item.firstimage) ?? normalizeText(item.firstimage2);
 
   return {
     name,
     contentId,
     contentTypeId,
     ...(address !== undefined ? { address } : {}),
+    ...(imageUrl !== undefined ? { imageUrl } : {}),
     coordinates: {
       latitude,
       longitude,
