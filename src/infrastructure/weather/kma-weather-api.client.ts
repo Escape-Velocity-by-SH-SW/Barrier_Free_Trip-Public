@@ -7,7 +7,6 @@ export interface KmaWeatherApiClientConfig {
   endpointUrl: string;
   serviceKey: string;
   dataType?: string;
-  timeoutMs?: number;
 }
 
 /** KMA 단기예보 조회 시점과 격자 좌표를 표현하는 요청 값이다. */
@@ -17,10 +16,14 @@ export interface KmaForecastRequest {
   visitDate?: string;
   nx: number;
   ny: number;
-  pageNo?: number;
   numOfRows?: number;
   signal?: AbortSignal;
 }
+
+type KmaForecastPageRequest = KmaForecastRequest & {
+  pageNo: number;
+  numOfRows: number;
+};
 
 /** KMA 공공데이터 포털이 응답 header.resultCode로 내려주는 결과 코드 목록이다. */
 export type KmaWeatherApiResultCode =
@@ -54,13 +57,11 @@ export interface KmaWeatherApiErrorDetails {
 /** KMA 응답에는 성공했지만 요청한 조회일자 예보 item이 없을 때 던지는 오류다. */
 export class KmaForecastDateNotFoundError extends Error {
   readonly visitDate: string;
-  readonly userMessage: string;
 
   constructor(visitDate: string) {
     super(`KMA forecast API response did not include forecast items for visit date: ${visitDate}.`);
     this.name = "KmaForecastDateNotFoundError";
     this.visitDate = visitDate;
-    this.userMessage = "요청한 날짜의 기상청 단기예보를 조회할 수 없습니다.";
   }
 }
 
@@ -98,7 +99,7 @@ export class KmaWeatherApiClient {
   /** totalCount를 만족할 때까지 단기예보 페이지를 순차 조회해 하나의 DTO로 합친다. */
   private async getAllForecastPages(request: KmaForecastRequest): Promise<KmaForecastResponseDto> {
     const numOfRows = request.numOfRows ?? defaultNumOfRows;
-    let pageNo = request.pageNo ?? defaultPageNo;
+    let pageNo = defaultPageNo;
     let firstResponse: KmaForecastResponseDto | undefined;
     let totalCount: number | undefined;
     const items: KmaForecastItemDto[] = [];
@@ -133,7 +134,7 @@ export class KmaWeatherApiClient {
   }
 
   /** 단일 페이지를 호출한 뒤 KMA header/resultCode 검증을 적용한다. */
-  private async getForecastPage(request: KmaForecastRequest): Promise<KmaForecastResponseDto> {
+  private async getForecastPage(request: KmaForecastPageRequest): Promise<KmaForecastResponseDto> {
     const response = await this.httpClient.requestJson<unknown>(
       buildForecastRequestOptions(this.config, request),
     );
@@ -145,21 +146,20 @@ export class KmaWeatherApiClient {
 /** 공통 HttpClient가 이해할 수 있는 path/query/timeout/signal 옵션으로 변환한다. */
 function buildForecastRequestOptions(
   config: KmaWeatherApiClientConfig,
-  request: KmaForecastRequest,
+  request: KmaForecastPageRequest,
 ): HttpRequestOptions {
   return {
     path: config.endpointUrl,
     query: {
       serviceKey: config.serviceKey,
-      pageNo: request.pageNo ?? 1,
-      numOfRows: request.numOfRows ?? 1000,
+      pageNo: request.pageNo,
+      numOfRows: request.numOfRows,
       dataType: config.dataType ?? "JSON",
       base_date: request.baseDate,
       base_time: request.baseTime,
       nx: request.nx,
       ny: request.ny,
     },
-    ...(config.timeoutMs !== undefined ? { timeoutMs: config.timeoutMs } : {}),
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
   };
 }
