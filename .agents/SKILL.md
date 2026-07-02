@@ -74,18 +74,21 @@ Tool: `get_destination_weather`
 
 1. Destination 좌표 조회
 2. 위·경도 → 기상청 격자
-3. 발표 기준일·시간 계산
+3. Asia/Seoul 기준 단기예보 발표 기준일·시간 계산
 4. 단기예보 호출
-5. 시간별 예보 정규화
-6. Service 유의사항 생성
-7. Tool 연결
-8. 테스트
+5. `POP`, `PCP`, `PTY`, `TMN`, `TMX`와 방문일 기준 item 필터링
+6. 방문일 일별 예보로 집계
+7. Service에서 강수/폭염/한파 중심 risk와 유의사항 생성
+8. Tool 연결
+9. 테스트
 
 주의:
 
 - Asia/Seoul 기준
-- 예보 범위 밖은 `OUT_OF_RANGE`
+- 단기예보 `base_time`은 `0200`, `0500`, `0800`, `1100`, `1400`, `1700`, `2000`, `2300` 중 발표 10분이 지난 최신 값
+- 과거 방문일 또는 API 응답에 방문일이 없으면 `NO_DATA`
 - 임의 예측 금지
+- Resolver 연동 전에는 MCP Inspector 검증을 위해 Destination 값을 수동 입력받을 수 있다.
 
 ## Charger
 

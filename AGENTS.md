@@ -67,7 +67,7 @@ createContainer()
 `src/bootstrap/`은 실행 조립 레이어다.
 
 - `create-server.ts`: `McpServer` 인스턴스 생성만 담당한다.
-- `create-container.ts`: 향후 Service, Repository, Adapter 주입 지점이다.
+- `create-container.ts`: Service, Repository, Adapter, Client 의존성 조립 지점이다.
 - `register-tools.ts`: 모든 MCP Tool 등록 순서를 한 곳에서 관리한다.
 
 Bootstrap 레이어에는 비즈니스 로직, 외부 API 호출, Adapter 구현을 넣지 않는다.
@@ -232,7 +232,8 @@ NOT_APPLICABLE
 
 빈 값은 기본적으로 `NOT_PROVIDED`다.
 `NO_DATA`와 `FAILED`를 구분한다.
-예보 범위 밖은 `OUT_OF_RANGE`다.
+날씨는 과거 방문일이거나 단기예보 응답에 요청 방문일이 없으면 `NO_DATA`다.
+예보 범위 밖을 명확히 판정할 수 있는 경우에만 `OUT_OF_RANGE`를 사용한다.
 
 ## Shared Contracts
 
