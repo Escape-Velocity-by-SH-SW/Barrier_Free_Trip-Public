@@ -1,6 +1,6 @@
 import type { WeatherRepository } from "../ports/weather.repository.js";
 import type { TravelerType } from "../../domain/accessibility.js";
-import type { Destination } from "../../domain/destination.js";
+import type { Coordinates, Destination } from "../../domain/destination.js";
 import type {
   DailyWeatherForecast,
   DestinationWeatherResult,
@@ -10,6 +10,13 @@ import type {
 
 export interface GetDestinationWeatherRequest {
   destination: Destination;
+  visitDate: string;
+  travelerType?: TravelerType;
+}
+
+export interface GetDestinationWeatherByCoordinatesRequest {
+  destinationName: string;
+  coordinates: Coordinates;
   visitDate: string;
   travelerType?: TravelerType;
 }
@@ -27,6 +34,17 @@ export class WeatherService {
     private readonly weatherRepository: WeatherRepository,
     private readonly clock: WeatherServiceClock = () => new Date(),
   ) {}
+
+  /** DestinationResolver 연결 전에는 MCP client가 명시한 좌표로 Destination을 구성해 날씨를 조회한다. */
+  async getDestinationWeatherByCoordinates(
+    request: GetDestinationWeatherByCoordinatesRequest,
+  ): Promise<DestinationWeatherResult> {
+    return this.getDestinationWeather({
+      destination: createCoordinateDestination(request.destinationName, request.coordinates),
+      visitDate: request.visitDate,
+      ...(request.travelerType !== undefined ? { travelerType: request.travelerType } : {}),
+    });
+  }
 
   /** 방문지 좌표와 방문일로 날씨를 조회하고 MCP 응답용 상태/유의사항을 조립한다. */
   async getDestinationWeather(
@@ -110,6 +128,15 @@ function getDatePart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormat
   }
 
   return part.value;
+}
+
+function createCoordinateDestination(destinationName: string, coordinates: Coordinates): Destination {
+  return {
+    name: destinationName,
+    contentId: "coordinate-input",
+    contentTypeId: "coordinate-input",
+    coordinates,
+  };
 }
 
 /** optional travelerType을 exactOptionalPropertyTypes에 맞게 필요한 경우에만 포함한다. */

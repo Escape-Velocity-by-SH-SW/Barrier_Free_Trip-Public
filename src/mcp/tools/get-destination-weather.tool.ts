@@ -3,7 +3,6 @@ import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
 import { travelerTypes } from "../../domain/accessibility.js";
-import type { Destination } from "../../domain/destination.js";
 
 const precipitationTypes = ["NONE", "RAIN", "RAIN_SNOW", "SNOW", "SHOWER", "UNKNOWN"] as const;
 
@@ -14,6 +13,10 @@ const weatherRiskTypes = ["HEAT", "COLD", "RAIN", "HEAVY_RAIN", "SNOW", "ICY_ROA
 /** get_destination_weather tool이 MCP client로부터 받는 입력 계약이다. */
 export const getDestinationWeatherInputSchema = {
   destination: z.string().trim().min(1),
+  coordinates: z.object({
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+  }),
   visitDate: z.iso.date(),
   travelerType: z.enum(travelerTypes).optional(),
 };
@@ -63,7 +66,8 @@ export function registerGetDestinationWeatherTool(
     "get_destination_weather",
     {
       title: "Get Destination Weather",
-      description: "관광지와 방문일을 기준으로 이동 조건에 필요한 날씨 유의사항을 조회합니다.",
+      description:
+        "관광지 좌표와 방문일을 기준으로 이동 조건에 필요한 날씨 유의사항을 조회합니다.",
       inputSchema: getDestinationWeatherInputSchema,
       outputSchema: getDestinationWeatherOutputSchema,
       annotations: {
@@ -86,28 +90,15 @@ export function registerGetDestinationWeatherTool(
   );
 }
 
-/** Tool 입력을 현재 단계의 수동 Destination으로 바꿔 WeatherService를 호출한다. */
+/** Tool 입력을 WeatherService의 좌표 기반 조회 요청으로 변환한다. */
 async function getDestinationWeather(
   input: GetDestinationWeatherInput,
   container: AppContainer,
 ): Promise<GetDestinationWeatherOutput> {
-  return container.services.weatherService.getDestinationWeather({
-    destination: createManualDestination(input.destination),
+  return container.services.weatherService.getDestinationWeatherByCoordinates({
+    destinationName: input.destination,
+    coordinates: input.coordinates,
     visitDate: input.visitDate,
     ...(input.travelerType !== undefined ? { travelerType: input.travelerType } : {}),
   });
-}
-
-/** DestinationResolver 연결 전 API 호출 확인을 위해 경복궁 좌표를 가진 임시 Destination을 만든다. */
-function createManualDestination(destinationName: string): Destination {
-  return {
-    name: destinationName,
-    contentId: "manual-weather-test",
-    contentTypeId: "12",
-    address: "서울특별시 종로구 사직로 161",
-    coordinates: {
-      latitude: 37.5796,
-      longitude: 126.977,
-    },
-  };
 }
