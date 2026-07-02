@@ -4,19 +4,28 @@ export interface KmaForecastBaseTime {
 }
 
 const KOREA_TIME_ZONE = "Asia/Seoul";
-const FORECAST_AVAILABLE_MINUTE = 45;
+const FORECAST_DELAY_MINUTES = 10;
+const SHORT_TERM_FORECAST_BASE_TIMES = [
+  { hour: 2, baseTime: "0200" },
+  { hour: 5, baseTime: "0500" },
+  { hour: 8, baseTime: "0800" },
+  { hour: 11, baseTime: "1100" },
+  { hour: 14, baseTime: "1400" },
+  { hour: 17, baseTime: "1700" },
+  { hour: 20, baseTime: "2000" },
+  { hour: 23, baseTime: "2300" },
+] as const;
 
-export function resolveKmaForecastBaseTime(now: Date = new Date()): KmaForecastBaseTime {
+/** 현재 시각을 KST로 해석해 단기예보 API에서 조회 가능한 최신 base_date/base_time을 고른다. */
+export function resolveKmaForecastBaseTime(now: Date): KmaForecastBaseTime {
   const koreaTime = toKoreaTimeParts(now);
-  const baseDateTime =
-    koreaTime.minute >= FORECAST_AVAILABLE_MINUTE
-      ? now
-      : new Date(now.getTime() - 60 * 60 * 1000);
-  const baseTimeParts = toKoreaTimeParts(baseDateTime);
+  const baseTime = resolveAvailableBaseTime(koreaTime);
 
   return {
-    baseDate: formatKmaBaseDate(baseTimeParts),
-    baseTime: `${pad2(baseTimeParts.hour)}30`,
+    baseDate: baseTime.usePreviousDate
+      ? formatPreviousKmaBaseDate(now)
+      : formatKmaBaseDate(koreaTime),
+    baseTime: baseTime.value,
   };
 }
 
@@ -26,6 +35,38 @@ interface KoreaTimeParts {
   day: number;
   hour: number;
   minute: number;
+}
+
+interface ResolvedBaseTime {
+  value: (typeof SHORT_TERM_FORECAST_BASE_TIMES)[number]["baseTime"];
+  usePreviousDate: boolean;
+}
+
+/** KST 시각이 속한 구간에 따라 오늘 또는 전날의 발표 기준시각을 선택한다. */
+function resolveAvailableBaseTime(parts: KoreaTimeParts): ResolvedBaseTime {
+  const currentMinutes = parts.hour * 60 + parts.minute;
+
+  for (let index = SHORT_TERM_FORECAST_BASE_TIMES.length - 1; index >= 0; index -= 1) {
+    const candidate = SHORT_TERM_FORECAST_BASE_TIMES[index];
+
+    if (candidate === undefined) {
+      continue;
+    }
+
+    const availableMinutes = candidate.hour * 60 + FORECAST_DELAY_MINUTES;
+
+    if (currentMinutes >= availableMinutes) {
+      return {
+        value: candidate.baseTime,
+        usePreviousDate: false,
+      };
+    }
+  }
+
+  return {
+    value: "2300",
+    usePreviousDate: true,
+  };
 }
 
 function toKoreaTimeParts(date: Date): KoreaTimeParts {
@@ -60,6 +101,12 @@ function getDatePart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormat
 
 function formatKmaBaseDate(parts: KoreaTimeParts): string {
   return `${parts.year}${pad2(parts.month)}${pad2(parts.day)}`;
+}
+
+/** 00:00~02:09 KST 구간에서 사용할 전날 baseDate를 계산한다. */
+function formatPreviousKmaBaseDate(date: Date): string {
+  const previousDate = new Date(date.getTime() - 24 * 60 * 60 * 1000);
+  return formatKmaBaseDate(toKoreaTimeParts(previousDate));
 }
 
 function pad2(value: number): string {
