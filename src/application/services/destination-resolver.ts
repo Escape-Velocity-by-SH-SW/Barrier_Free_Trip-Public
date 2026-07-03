@@ -44,7 +44,7 @@ export class DestinationResolver {
 
   async resolveByContentId(request: {
     contentId: string;
-    destinationName?: string;
+    destinationName: string;
   }): Promise<DestinationResolutionResult> {
     const contentId = request.contentId.trim();
 
@@ -52,9 +52,9 @@ export class DestinationResolver {
       return { status: "NO_DATA" };
     }
 
-    const destinationName = request.destinationName?.trim();
+    const destinationName = request.destinationName.trim();
 
-    if (destinationName === undefined || destinationName.length === 0) {
+    if (destinationName.length === 0) {
       return { status: "NO_DATA" };
     }
 
@@ -70,7 +70,7 @@ export class DestinationResolver {
 
     if (selectedCandidate === undefined) {
       return {
-        status: "NO_DATA",
+        status: candidates.length > 0 ? "AMBIGUOUS_DESTINATION" : "NO_DATA",
         candidates,
       };
     }

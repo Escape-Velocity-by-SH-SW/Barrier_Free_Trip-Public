@@ -21,6 +21,7 @@ export interface FestivalApiRequest {
 
 const defaultFullScanPageSize = 100;
 const defaultFocusedPerPage = 100;
+const fullScanConcurrency = 4;
 
 export class FestivalApiClient {
   private readonly path: string;
@@ -63,13 +64,14 @@ export class FestivalApiClient {
       return firstPage;
     }
 
-    const remainingPages = await Promise.all(
-      Array.from({ length: pageCount - 1 }, (_, index) =>
+    const remainingPages = await mapWithConcurrency(
+      Array.from({ length: pageCount - 1 }, (_, index) => index + 2),
+      fullScanConcurrency,
+      (page) =>
         this.getFestivals({
-          page: index + 2,
+          page,
           perPage: this.fullScanPageSize,
         }),
-      ),
     );
 
     return {
@@ -147,6 +149,10 @@ function normalizeFestivalRows(response: Record<string, unknown>): FestivalRowDt
   const body = getBody(response);
   const items = body?.items;
 
+  if (items === undefined || items === null || items === "") {
+    return [];
+  }
+
   if (Array.isArray(items)) {
     return items.map(toFestivalRow);
   }
@@ -154,13 +160,15 @@ function normalizeFestivalRows(response: Record<string, unknown>): FestivalRowDt
   if (isRecord(items)) {
     const item = items.item;
 
+    if (item === undefined || item === null || item === "") {
+      return [];
+    }
+
     if (Array.isArray(item)) {
       return item.map(toFestivalRow);
     }
 
-    if (isRecord(item)) {
-      return [item];
-    }
+    return [toFestivalRow(item)];
   }
 
   return undefined;
@@ -258,4 +266,19 @@ function normalizeCount(value: string | number | null | undefined): number {
   }
 
   return 0;
+}
+
+async function mapWithConcurrency<TItem, TResult>(
+  items: TItem[],
+  concurrency: number,
+  mapper: (item: TItem) => Promise<TResult>,
+): Promise<TResult[]> {
+  const results: TResult[] = [];
+
+  for (let index = 0; index < items.length; index += concurrency) {
+    const batch = items.slice(index, index + concurrency);
+    results.push(...(await Promise.all(batch.map(mapper))));
+  }
+
+  return results;
 }

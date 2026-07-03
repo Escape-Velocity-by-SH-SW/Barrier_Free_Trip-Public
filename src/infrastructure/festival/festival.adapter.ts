@@ -58,6 +58,17 @@ function filterNearbyFestivals(
     festival,
     distanceKm: getDistanceKm(festival, query.coordinates),
   }));
+
+  if (lookupMode === "focused") {
+    return uniqueFestivalsByEventKey(
+      festivalsWithDistance
+        .filter(
+          ({ festival, distanceKm }) => !hasCoordinates(festival) || distanceKm <= query.radiusKm,
+        )
+        .sort((left, right) => left.distanceKm - right.distanceKm),
+    ).map(({ festival }) => festival);
+  }
+
   const festivalsWithCoordinates = festivalsWithDistance.filter(({ festival }) =>
     hasCoordinates(festival),
   );
@@ -67,17 +78,6 @@ function filterNearbyFestivals(
   const nearbyFestivals = uniqueFestivalsByEventKey(nearbyFestivalsWithDistance).map(
     ({ festival }) => festival,
   );
-
-  logFestivalFilterCounts({
-    rawCount: festivals.length,
-    activeCount: activeFestivals.length,
-    missingCoordinateCount: festivalsWithDistance.length - festivalsWithCoordinates.length,
-    nearbyCount: nearbyFestivalsWithDistance.length,
-    deduplicatedNearbyCount: nearbyFestivals.length,
-    visitDate: query.visitDate,
-    radiusKm: query.radiusKm,
-    lookupMode,
-  });
 
   return nearbyFestivals;
 }
@@ -147,17 +147,4 @@ function createEventKey(festival: FestivalSourceData): string {
 
 function normalizeEventKeyPart(value: string | undefined): string {
   return value?.trim().replaceAll(/\s+/g, "").toLowerCase() ?? "";
-}
-
-function logFestivalFilterCounts(context: {
-  rawCount: number;
-  activeCount: number;
-  missingCoordinateCount: number;
-  nearbyCount: number;
-  deduplicatedNearbyCount: number;
-  visitDate: string;
-  radiusKm: number;
-  lookupMode: "focused" | "broad";
-}): void {
-  console.error("[FestivalAdapter] festival filter counts", context);
 }

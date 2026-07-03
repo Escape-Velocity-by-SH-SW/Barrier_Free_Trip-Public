@@ -10,19 +10,19 @@ export function mapFestivalResponseToSourceData(
 }
 
 function mapFestivalRowToSourceData(row: FestivalRowDto): FestivalSourceData | undefined {
-  const name = normalizeText(row["축제명"] ?? row.fstvlNm);
+  const name = firstText(row["축제명"], row.fstvlNm);
 
   if (name === undefined) {
     return undefined;
   }
 
-  const venue = normalizeText(row["개최장소"] ?? row.opar);
-  const roadAddress = normalizeText(row["소재지도로명주소"] ?? row.rdnmadr);
-  const lotAddress = normalizeText(row["소재지지번주소"] ?? row.lnmadr);
-  const startDate = normalizeText(row["축제시작일자"] ?? row.fstvlStartDate);
-  const endDate = normalizeText(row["축제종료일자"] ?? row.fstvlEndDate);
-  const latitude = parseCoordinate(row["위도"] ?? row.latitude, -90, 90);
-  const longitude = parseCoordinate(row["경도"] ?? row.longitude, -180, 180);
+  const venue = firstText(row["개최장소"], row.opar);
+  const roadAddress = firstText(row["소재지도로명주소"], row.rdnmadr);
+  const lotAddress = firstText(row["소재지지번주소"], row.lnmadr);
+  const startDate = firstText(row["축제시작일자"], row.fstvlStartDate);
+  const endDate = firstText(row["축제종료일자"], row.fstvlEndDate);
+  const latitude = parseCoordinate(firstText(row["위도"], row.latitude), -90, 90);
+  const longitude = parseCoordinate(firstText(row["경도"], row.longitude), -180, 180);
   const address = roadAddress ?? lotAddress;
 
   return {
@@ -34,8 +34,8 @@ function mapFestivalRowToSourceData(row: FestivalRowDto): FestivalSourceData | u
     ...(endDate !== undefined ? { endDate } : {}),
     ...(latitude !== undefined ? { latitude } : {}),
     ...(longitude !== undefined ? { longitude } : {}),
-    ...optionalField("phoneNumber", row["전화번호"] ?? row.phoneNumber),
-    ...optionalField("referenceDate", row["데이터기준일자"] ?? row.referenceDate),
+    ...optionalField("phoneNumber", firstText(row["전화번호"], row.phoneNumber)),
+    ...optionalField("referenceDate", firstText(row["데이터기준일자"], row.referenceDate)),
   };
 }
 
@@ -59,6 +59,13 @@ function normalizeText(value: string | number | null | undefined): string | unde
 
   const trimmedValue = String(value).trim();
   return trimmedValue.length > 0 ? trimmedValue : undefined;
+}
+
+function firstText(
+  first: string | number | null | undefined,
+  second: string | number | null | undefined,
+): string | undefined {
+  return normalizeText(first) ?? normalizeText(second);
 }
 
 function parseCoordinate(

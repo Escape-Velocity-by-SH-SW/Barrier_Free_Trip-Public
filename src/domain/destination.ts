@@ -3,6 +3,8 @@ export interface Coordinates {
   longitude: number;
 }
 
+export const touristAttractionContentTypeId = "12";
+
 export type DestinationResolutionStatus =
   | "RESOLVED"
   | "NO_DATA"

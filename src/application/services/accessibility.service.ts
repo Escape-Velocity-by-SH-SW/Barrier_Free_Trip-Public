@@ -7,6 +7,7 @@ import type {
   TravelerType,
 } from "../../domain/accessibility.js";
 import type { Destination } from "../../domain/destination.js";
+import { touristAttractionContentTypeId } from "../../domain/destination.js";
 
 export interface AccessibilityServiceRequest {
   destination: Destination;
@@ -39,6 +40,17 @@ const facilityKeys = [
   "lactationRoom",
 ] as const satisfies readonly (keyof AccessibilityFacilities)[];
 
+const facilityLabels = {
+  parking: "장애인 주차장",
+  route: "접근로",
+  entrance: "출입구",
+  elevator: "엘리베이터",
+  restroom: "장애인 화장실",
+  wheelchairRental: "휠체어 대여",
+  stroller: "유모차 대여",
+  lactationRoom: "수유실",
+} as const satisfies Readonly<Record<keyof AccessibilityFacilities, string>>;
+
 export class AccessibilityService {
   constructor(private readonly repository: TourismAccessibilityRepository) {}
 
@@ -54,7 +66,13 @@ export class AccessibilityService {
         ...createLookupResult(sourceData, request.travelerType),
         destination: request.destination,
       };
-    } catch {
+    } catch (error) {
+      logAccessibilityLookupFailure("getAccessibility", {
+        contentId: request.destination.contentId,
+        contentTypeId: request.destination.contentTypeId,
+        error,
+      });
+
       return {
         ...createFailedLookupResult(request.travelerType),
         status: "FAILED",
@@ -69,14 +87,48 @@ export class AccessibilityService {
     try {
       const sourceData = await this.repository.getAccessibility(
         request.contentId,
-        request.contentTypeId ?? "12",
+        request.contentTypeId ?? touristAttractionContentTypeId,
       );
 
       return createLookupResult(sourceData, request.travelerType);
-    } catch {
+    } catch (error) {
+      logAccessibilityLookupFailure("getAccessibilityByContentId", {
+        contentId: request.contentId,
+        contentTypeId: request.contentTypeId ?? touristAttractionContentTypeId,
+        error,
+      });
+
       return createFailedLookupResult(request.travelerType);
     }
   }
+}
+
+function logAccessibilityLookupFailure(
+  methodName: "getAccessibility" | "getAccessibilityByContentId",
+  context: {
+    contentId: string;
+    contentTypeId: string;
+    error: unknown;
+  },
+): void {
+  console.error("[AccessibilityService] failed to lookup accessibility", {
+    methodName,
+    contentId: context.contentId,
+    contentTypeId: context.contentTypeId,
+    error: toLoggableError(context.error),
+  });
+}
+
+function toLoggableError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ...(error.stack !== undefined ? { stack: error.stack } : {}),
+    };
+  }
+
+  return { value: error };
 }
 
 function createLookupResult(
@@ -166,7 +218,9 @@ function hasProvidedFacility(facilities: AccessibilityFacilities): boolean {
 }
 
 function getUnknownFacilityNames(facilities: AccessibilityFacilities): string[] {
-  return facilityKeys.filter((facilityKey) => facilities[facilityKey].status === "NOT_PROVIDED");
+  return facilityKeys
+    .filter((facilityKey) => facilities[facilityKey].status === "NOT_PROVIDED")
+    .map((facilityKey) => facilityLabels[facilityKey]);
 }
 
 function createCautions(
