@@ -4,6 +4,7 @@ import { DestinationAccessibilityToolService } from "../application/services/des
 import { DestinationEventRiskToolService } from "../application/services/destination-event-risk-tool.service.js";
 import { DestinationResolver } from "../application/services/destination-resolver.js";
 import { FestivalRiskService } from "../application/services/festival-risk.service.js";
+import { VisitAssessmentService } from "../application/services/visit-assessment.service.js";
 import { WeatherService } from "../application/services/weather.service.js";
 import { WheelChairChargerApiClient } from "../infrastructure/charger/wheelchair-charger-api.client.js";
 import { WheelChairChargerAdapter } from "../infrastructure/charger/wheelchair-charger.adapter.js";
@@ -24,6 +25,7 @@ export interface AppContainer {
     readonly destinationResolver: DestinationResolver;
     readonly accessibilityService: AccessibilityService;
     readonly festivalRiskService: FestivalRiskService;
+    readonly visitAssessmentService: VisitAssessmentService;
     readonly destinationAccessibilityToolService: DestinationAccessibilityToolService;
     readonly destinationEventRiskToolService: DestinationEventRiskToolService;
   };
@@ -31,15 +33,24 @@ export interface AppContainer {
 
 export function createContainer(env: NodeJS.ProcessEnv = process.env): AppContainer {
   const tourismServices = createTourismServices(env);
+  const chargerService = createChargerService(env);
+  const weatherService = createWeatherService(env);
   const festivalRiskService = createFestivalRiskService(env);
 
   return {
     services: {
-      chargerService: createChargerService(env),
-      weatherService: createWeatherService(env),
+      chargerService,
+      weatherService,
       destinationResolver: tourismServices.destinationResolver,
       accessibilityService: tourismServices.accessibilityService,
       festivalRiskService,
+      visitAssessmentService: new VisitAssessmentService(
+        tourismServices.destinationResolver,
+        tourismServices.accessibilityService,
+        weatherService,
+        chargerService,
+        festivalRiskService,
+      ),
       destinationAccessibilityToolService: new DestinationAccessibilityToolService(
         tourismServices.destinationResolver,
         tourismServices.accessibilityService,

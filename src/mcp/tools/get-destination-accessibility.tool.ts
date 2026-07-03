@@ -92,11 +92,16 @@ export function registerGetDestinationAccessibilityTool(
     "get_destination_accessibility",
     {
       title: "Get Destination Accessibility",
-      description: "관광지의 무장애 편의시설 정보를 조회합니다.",
+      description:
+        "Accessible Visit MCP(무장애 방문 MCP): 관광지의 무장애 편의시설 정보를 조회합니다.",
       inputSchema: getDestinationAccessibilityInputSchema,
       outputSchema: getDestinationAccessibilityOutputSchema,
       annotations: {
+        title: "Get Destination Accessibility",
         readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
       },
     },
     async (input) => {

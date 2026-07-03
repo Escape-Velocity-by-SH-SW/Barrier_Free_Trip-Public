@@ -79,11 +79,16 @@ export function registerGetDestinationEventRiskTool(
     "get_destination_event_risk",
     {
       title: "Get Destination Event Risk",
-      description: "방문일에 관광지 주변 축제를 조회하고 행사 기반 혼잡 위험을 반환합니다.",
+      description:
+        "Accessible Visit MCP(무장애 방문 MCP): 방문일에 관광지 주변 축제를 조회하고 행사 기반 혼잡 위험을 반환합니다.",
       inputSchema: getDestinationEventRiskInputSchema,
       outputSchema: getDestinationEventRiskOutputSchema,
       annotations: {
+        title: "Get Destination Event Risk",
         readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
       },
     },
     async (input) => {

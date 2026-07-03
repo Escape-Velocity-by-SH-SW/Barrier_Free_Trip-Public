@@ -64,28 +64,46 @@ export function registerAssessAccessibleVisitTool(
   server: McpServer,
   container: AppContainer,
 ): void {
-  void container;
-
   server.registerTool(
     "assess_accessible_visit",
     {
       title: "Assess Accessible Visit",
       description:
-        "편의시설, 날씨, 충전소, 축제 정보를 함께 조회하여 종합 방문 유의사항을 반환합니다.",
+        "Accessible Visit MCP(무장애 방문 MCP): 편의시설, 날씨, 충전소, 축제 정보를 함께 조회하여 종합 방문 유의사항을 반환합니다.",
       inputSchema: assessAccessibleVisitInputSchema,
       outputSchema: assessAccessibleVisitOutputSchema,
       annotations: {
+        title: "Assess Accessible Visit",
         readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
       },
     },
-    () => ({
-      isError: true,
-      content: [
-        {
-          type: "text",
-          text: "NOT_IMPLEMENTED: 종합 방문 평가 Application Service 연결은 아직 구현되지 않았습니다.",
-        },
-      ],
-    }),
+    async (input) => {
+      try {
+        const result = await container.services.visitAssessmentService.assess(input);
+
+        return {
+          structuredContent: result as unknown as Record<string, unknown>,
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: "FAILED: 관광지를 확정하지 못해 종합 방문 평가를 수행하지 못했습니다.",
+            },
+          ],
+        };
+      }
+    },
   );
 }
