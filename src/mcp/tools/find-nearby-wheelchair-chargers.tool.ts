@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import type { AppContainer } from "../../bootstrap/create-container.js";
+import { createToolResult } from "./tool-result.js";
 
 export const findNearbyWheelchairChargersInputSchema = {
   destination: z.string().trim().min(1),
@@ -37,27 +38,38 @@ export function registerFindNearbyWheelchairChargersTool(
   server: McpServer,
   container: AppContainer,
 ): void {
-  void container;
-
   server.registerTool(
     "find_nearby_wheelchair_chargers",
     {
       title: "Find Nearby Wheelchair Chargers",
-      description: "관광지 주변 전동휠체어 급속충전소를 조회합니다.",
+      description:
+        "Accessible Visit MCP(무장애 방문 MCP): 관광지 주변 전동휠체어 급속충전소를 조회합니다.",
       inputSchema: findNearbyWheelchairChargersInputSchema,
       outputSchema: findNearbyWheelchairChargersOutputSchema,
       annotations: {
+        title: "Find Nearby Wheelchair Chargers",
         readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
       },
     },
-    () => ({
-      isError: true,
-      content: [
-        {
-          type: "text",
-          text: "NOT_IMPLEMENTED: DestinationResolver 연동 후 충전소 조회가 가능합니다.",
-        },
-      ],
-    }),
+    async (input) => {
+      const result = await container.services.nearbyWheelchairChargersToolService.execute(input);
+
+      if (result.status === "FAILED") {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: result.errorMessage,
+            },
+          ],
+        };
+      }
+
+      return createToolResult(result.result);
+    },
   );
 }

@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
+import { createToolResult } from "./tool-result.js";
 
 const sourceSchema = z.object({
   name: z.string(),
@@ -67,10 +68,6 @@ export const getDestinationEventRiskOutputSchema = {
   sources: z.array(sourceSchema),
 };
 
-type GetDestinationEventRiskOutput = z.output<
-  z.ZodObject<typeof getDestinationEventRiskOutputSchema>
->;
-
 export function registerGetDestinationEventRiskTool(
   server: McpServer,
   container: AppContainer,
@@ -79,11 +76,16 @@ export function registerGetDestinationEventRiskTool(
     "get_destination_event_risk",
     {
       title: "Get Destination Event Risk",
-      description: "방문일에 관광지 주변 축제를 조회하고 행사 기반 혼잡 위험을 반환합니다.",
+      description:
+        "Accessible Visit MCP(무장애 방문 MCP): 방문일에 관광지 주변 축제를 조회하고 행사 기반 혼잡 위험을 반환합니다.",
       inputSchema: getDestinationEventRiskInputSchema,
       outputSchema: getDestinationEventRiskOutputSchema,
       annotations: {
+        title: "Get Destination Event Risk",
         readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
       },
     },
     async (input) => {
@@ -92,19 +94,4 @@ export function registerGetDestinationEventRiskTool(
       );
     },
   );
-}
-
-function createToolResult(output: GetDestinationEventRiskOutput): {
-  structuredContent: GetDestinationEventRiskOutput;
-  content: Array<{ type: "text"; text: string }>;
-} {
-  return {
-    structuredContent: output,
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(output, null, 2),
-      },
-    ],
-  };
 }

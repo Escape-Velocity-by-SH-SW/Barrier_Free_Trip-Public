@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
 import { travelerTypes } from "../../domain/accessibility.js";
+import { createToolResult } from "./tool-result.js";
 
 const precipitationTypes = ["NONE", "RAIN", "RAIN_SNOW", "SNOW", "SHOWER", "UNKNOWN"] as const;
 
@@ -67,25 +68,21 @@ export function registerGetDestinationWeatherTool(
     {
       title: "Get Destination Weather",
       description:
-        "관광지 좌표와 방문일을 기준으로 이동 조건에 필요한 날씨 유의사항을 조회합니다.",
+        "Accessible Visit MCP(무장애 방문 MCP): 관광지 좌표와 방문일을 기준으로 이동 조건에 필요한 날씨 유의사항을 조회합니다.",
       inputSchema: getDestinationWeatherInputSchema,
       outputSchema: getDestinationWeatherOutputSchema,
       annotations: {
+        title: "Get Destination Weather",
         readOnlyHint: true,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
       },
     },
     async (input) => {
       const result = await getDestinationWeather(input, container);
 
-      return {
-        structuredContent: { ...result },
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
+      return createToolResult(result);
     },
   );
 }

@@ -7,10 +7,12 @@ import type {
   NearbyFestival,
 } from "../../domain/festival.js";
 import { calculateDistanceKm } from "../../domain/geo.js";
+import { toLoggableError } from "./logging.js";
 
 const defaultRadiusKm = 3;
 const highRiskDistanceKm = 1;
 const highRiskFestivalCount = 2;
+const maxReturnedFestivals = 5;
 
 export interface FestivalRiskAssessmentRequest {
   destination: Destination;
@@ -65,43 +67,15 @@ function logFestivalRiskAssessmentFailure(
   });
 }
 
-function toLoggableError(error: unknown): Record<string, unknown> {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      ...(getOptionalProperty(error, "kind") !== undefined
-        ? { kind: getOptionalProperty(error, "kind") }
-        : {}),
-      ...(getOptionalProperty(error, "status") !== undefined
-        ? { status: getOptionalProperty(error, "status") }
-        : {}),
-      ...(getOptionalProperty(error, "retryAfterSeconds") !== undefined
-        ? { retryAfterSeconds: getOptionalProperty(error, "retryAfterSeconds") }
-        : {}),
-      ...(error.stack !== undefined ? { stack: error.stack } : {}),
-    };
-  }
-
-  return {
-    value: error,
-  };
-}
-
-function getOptionalProperty(value: object, property: string): unknown {
-  return Object.prototype.hasOwnProperty.call(value, property)
-    ? (value as Record<string, unknown>)[property]
-    : undefined;
-}
-
 function createResult(
   destination: Destination,
   visitDate: string,
   radiusKm: number,
   festivals: FestivalSourceData[],
 ): DestinationFestivalRiskResult {
-  const nearbyFestivals = festivals.map((festival) => toNearbyFestival(destination, festival));
-  const riskLevel = calculateRiskLevel(nearbyFestivals);
+  const allNearbyFestivals = festivals.map((festival) => toNearbyFestival(destination, festival));
+  const nearbyFestivals = allNearbyFestivals.slice(0, maxReturnedFestivals);
+  const riskLevel = calculateRiskLevel(allNearbyFestivals);
 
   return {
     status: "SUCCESS",
@@ -110,7 +84,7 @@ function createResult(
     radiusKm,
     riskLevel,
     festivals: nearbyFestivals,
-    cautions: createCautions(riskLevel, nearbyFestivals),
+    cautions: createCautions(riskLevel, nearbyFestivals, allNearbyFestivals.length),
   };
 }
 
@@ -161,11 +135,21 @@ function calculateRiskLevel(festivals: NearbyFestival[]): FestivalRiskLevel {
   return "MEDIUM";
 }
 
-function createCautions(riskLevel: FestivalRiskLevel, festivals: NearbyFestival[]): string[] {
+function createCautions(
+  riskLevel: FestivalRiskLevel,
+  festivals: NearbyFestival[],
+  totalFestivalCount: number,
+): string[] {
+  const truncationCaution =
+    totalFestivalCount > festivals.length
+      ? [`주변 축제는 최대 ${maxReturnedFestivals}개까지만 반환합니다.`]
+      : [];
+
   if (riskLevel === "LOW") {
     return [
       "방문일 기준 반경 내 진행 축제는 확인되지 않았습니다.",
       "좌표가 없는 축제 데이터는 거리 계산에서 제외될 수 있습니다.",
+      ...truncationCaution,
     ];
   }
 
@@ -173,6 +157,7 @@ function createCautions(riskLevel: FestivalRiskLevel, festivals: NearbyFestival[
     return [
       "축제 위치 정보가 부족해 거리 기반 위험도를 확정하기 어렵습니다.",
       "좌표가 없는 축제 데이터는 거리 계산에서 제외될 수 있습니다.",
+      ...truncationCaution,
     ];
   }
 
@@ -181,10 +166,14 @@ function createCautions(riskLevel: FestivalRiskLevel, festivals: NearbyFestival[
   if (riskLevel === "HIGH") {
     return [
       `방문지와 가까운 축제가 진행 중입니다: ${festivalNames}. 교통과 주차 혼잡을 확인하세요.`,
+      ...truncationCaution,
     ];
   }
 
-  return [`방문지 주변에서 축제가 진행 중입니다: ${festivalNames}. 이동 동선을 미리 확인하세요.`];
+  return [
+    `방문지 주변에서 축제가 진행 중입니다: ${festivalNames}. 이동 동선을 미리 확인하세요.`,
+    ...truncationCaution,
+  ];
 }
 
 function roundDistance(distanceKm: number): number {
