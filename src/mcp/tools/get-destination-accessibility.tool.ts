@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
 import { travelerTypes } from "../../domain/accessibility.js";
+import { createToolResult } from "./tool-result.js";
 
 const evidenceItemSchema = z.object({
   status: z.enum(["CONFIRMED", "NOT_AVAILABLE", "NOT_PROVIDED", "CONFLICTING"]),
@@ -80,10 +81,6 @@ export const getDestinationAccessibilityOutputSchema = {
   sources: z.array(sourceSchema),
 };
 
-type GetDestinationAccessibilityOutput = z.output<
-  z.ZodObject<typeof getDestinationAccessibilityOutputSchema>
->;
-
 export function registerGetDestinationAccessibilityTool(
   server: McpServer,
   container: AppContainer,
@@ -110,19 +107,4 @@ export function registerGetDestinationAccessibilityTool(
       );
     },
   );
-}
-
-function createToolResult(output: GetDestinationAccessibilityOutput): {
-  structuredContent: GetDestinationAccessibilityOutput;
-  content: Array<{ type: "text"; text: string }>;
-} {
-  return {
-    structuredContent: output,
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(output, null, 2),
-      },
-    ],
-  };
 }

@@ -28,6 +28,13 @@ export interface VisitAssessmentRequest {
 
 const defaultRadiusKm = 3;
 
+export class VisitAssessmentDestinationResolutionError extends Error {
+  constructor() {
+    super("Destination could not be resolved for accessible visit assessment.");
+    this.name = "VisitAssessmentDestinationResolutionError";
+  }
+}
+
 export class VisitAssessmentService {
   constructor(
     private readonly destinationResolver: DestinationResolver,
@@ -42,7 +49,7 @@ export class VisitAssessmentService {
     const resolution = await this.destinationResolver.resolve(request.destination);
 
     if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
-      throw new Error("Destination could not be resolved for accessible visit assessment.");
+      throw new VisitAssessmentDestinationResolutionError();
     }
 
     const destination = resolution.destination;
@@ -81,10 +88,10 @@ export class VisitAssessmentService {
         ? festivalRisk.value
         : createFailedFestivalRiskResult(destination, request.visitDate, radiusKm);
     const combinedCautions = createCombinedCautions(
-      accessibilityResult.cautions,
-      weatherResult.risk.cautions,
-      chargerResult.cautions,
-      festivalRiskResult.cautions,
+      accessibilityResult,
+      weatherResult,
+      chargerResult,
+      festivalRiskResult,
     );
     const overallStatus = calculateOverallStatus({
       accessibilityStatus: accessibilityResult.status,
@@ -110,7 +117,12 @@ export class VisitAssessmentService {
       chargers: chargerResult,
       festivalRisk: festivalRiskResult,
       combinedCautions,
-      unknowns: accessibilityResult.unknowns,
+      unknowns: createUnknowns(
+        accessibilityResult,
+        weatherResult,
+        chargerResult,
+        festivalRiskResult,
+      ),
       checklist: createChecklist(request.travelerType),
       phoneCheckQuestions: createPhoneCheckQuestions(request.travelerType),
     };
@@ -191,30 +203,61 @@ function createNotProvidedFacilities(): AccessibilityFacilities {
 }
 
 function createCombinedCautions(
-  accessibilityCautions: string[],
-  weatherCautions: string[],
-  chargerCautions: string[],
-  festivalCautions: string[],
+  accessibility: DestinationAccessibilityResult,
+  weather: DestinationWeatherResult,
+  chargers: NearbyWheelchairChargerResult,
+  festivalRisk: DestinationFestivalRiskResult,
 ): CautionItem[] {
   return [
-    ...toCautionItems("ACCESSIBILITY", accessibilityCautions),
-    ...toCautionItems("WEATHER", weatherCautions),
-    ...toCautionItems("CHARGER", chargerCautions),
-    ...toCautionItems("FESTIVAL", festivalCautions),
+    ...toCautionItems("ACCESSIBILITY", accessibility.cautions, accessibility.status),
+    ...toCautionItems("WEATHER", weather.risk.cautions, weather.status),
+    ...toCautionItems("CHARGER", chargers.cautions, chargers.status),
+    ...toCautionItems("FESTIVAL", festivalRisk.cautions, festivalRisk.status),
   ];
 }
 
 function toCautionItems(
   domain: CautionItem["domains"][number],
   messages: string[],
+  status: string,
 ): CautionItem[] {
   return messages.slice(0, 5).map((message, index) => ({
     code: `${domain}_${index + 1}`,
-    level: domain === "WEATHER" || domain === "FESTIVAL" ? "MEDIUM" : "LOW",
+    level: getCautionLevel(domain, status),
     domains: [domain],
     message,
     evidence: [message],
   }));
+}
+
+function getCautionLevel(domain: CautionItem["domains"][number], status: string): CautionItem["level"] {
+  if (status === "FAILED") {
+    return "HIGH";
+  }
+
+  if (status === "NO_DATA" || status === "OUT_OF_RANGE" || status === "NOT_APPLICABLE") {
+    return "MEDIUM";
+  }
+
+  return domain === "WEATHER" || domain === "FESTIVAL" ? "MEDIUM" : "LOW";
+}
+
+function createUnknowns(
+  accessibility: DestinationAccessibilityResult,
+  weather: DestinationWeatherResult,
+  chargers: NearbyWheelchairChargerResult,
+  festivalRisk: DestinationFestivalRiskResult,
+): string[] {
+  return [
+    ...accessibility.unknowns,
+    ...(weather.status === "FAILED" || weather.status === "NO_DATA" || weather.status === "OUT_OF_RANGE"
+      ? ["날씨 정보"]
+      : []),
+    ...(chargers.status === "FAILED" || chargers.status === "NO_DATA" ? ["전동휠체어 충전소 정보"] : []),
+    ...(festivalRisk.status === "FAILED" || festivalRisk.status === "NO_DATA"
+      ? ["축제 기반 혼잡 위험 정보"]
+      : []),
+  ];
 }
 
 function calculateOverallStatus(input: {

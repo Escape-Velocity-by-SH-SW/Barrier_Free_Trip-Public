@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
+import { createToolResult } from "./tool-result.js";
 
 const sourceSchema = z.object({
   name: z.string(),
@@ -67,10 +68,6 @@ export const getDestinationEventRiskOutputSchema = {
   sources: z.array(sourceSchema),
 };
 
-type GetDestinationEventRiskOutput = z.output<
-  z.ZodObject<typeof getDestinationEventRiskOutputSchema>
->;
-
 export function registerGetDestinationEventRiskTool(
   server: McpServer,
   container: AppContainer,
@@ -97,19 +94,4 @@ export function registerGetDestinationEventRiskTool(
       );
     },
   );
-}
-
-function createToolResult(output: GetDestinationEventRiskOutput): {
-  structuredContent: GetDestinationEventRiskOutput;
-  content: Array<{ type: "text"; text: string }>;
-} {
-  return {
-    structuredContent: output,
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(output, null, 2),
-      },
-    ],
-  };
 }

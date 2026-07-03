@@ -2,7 +2,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
+import { VisitAssessmentDestinationResolutionError } from "../../application/services/visit-assessment.service.js";
 import { travelerTypes } from "../../domain/accessibility.js";
+import { createToolResult } from "./tool-result.js";
 
 export const assessAccessibleVisitInputSchema = {
   destination: z.string().trim().min(1),
@@ -84,16 +86,27 @@ export function registerAssessAccessibleVisitTool(
       try {
         const result = await container.services.visitAssessmentService.assess(input);
 
-        return {
-          structuredContent: result as unknown as Record<string, unknown>,
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(result, null, 2),
-            },
-          ],
-        };
-      } catch {
+        return createToolResult(result);
+      } catch (error) {
+        console.error("[assess_accessible_visit] failed to assess visit", {
+          destination: input.destination,
+          visitDate: input.visitDate,
+          travelerType: input.travelerType,
+          error: toLoggableError(error),
+        });
+
+        if (!(error instanceof VisitAssessmentDestinationResolutionError)) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: "FAILED: 종합 방문 평가 처리 중 오류가 발생했습니다.",
+              },
+            ],
+          };
+        }
+
         return {
           isError: true,
           content: [
@@ -106,4 +119,16 @@ export function registerAssessAccessibleVisitTool(
       }
     },
   );
+}
+
+function toLoggableError(error: unknown): Record<string, unknown> {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ...(error.stack !== undefined ? { stack: error.stack } : {}),
+    };
+  }
+
+  return { value: error };
 }

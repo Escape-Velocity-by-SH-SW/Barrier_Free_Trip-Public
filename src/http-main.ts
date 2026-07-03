@@ -14,6 +14,8 @@ import { registerTools } from "./bootstrap/register-tools.js";
 const envFilePath = resolve(dirname(fileURLToPath(import.meta.url)), "../.env");
 const defaultPort = 3000;
 const mcpPath = "/mcp";
+const requestTimeoutMs = 30_000;
+const headersTimeoutMs = 10_000;
 
 function main(): void {
   config({ path: envFilePath, quiet: true });
@@ -24,6 +26,10 @@ function main(): void {
   const httpServer = createHttpServer((request, response) => {
     void handleHttpRequest(request, response, container);
   });
+  httpServer.requestTimeout = requestTimeoutMs;
+  httpServer.headersTimeout = headersTimeoutMs;
+
+  registerShutdownHandlers(httpServer);
 
   httpServer.listen(port, () => {
     console.error(`[accessible-visit-mcp] streamable http server started on port ${port}`);
@@ -35,24 +41,26 @@ async function handleHttpRequest(
   response: ServerResponse,
   container: ReturnType<typeof createContainer>,
 ): Promise<void> {
-  const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
-
-  if (requestUrl.pathname !== mcpPath) {
-    writeJsonResponse(response, 404, {
-      jsonrpc: "2.0",
-      error: {
-        code: -32000,
-        message: "Not found.",
-      },
-      id: null,
-    });
-    return;
-  }
-
-  const server = createServer();
-  const transport = new StreamableHTTPServerTransport(createStatelessTransportOptions());
+  let server: ReturnType<typeof createServer> | undefined;
+  let transport: StreamableHTTPServerTransport | undefined;
 
   try {
+    const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+
+    if (requestUrl.pathname !== mcpPath) {
+      writeJsonResponse(response, 404, {
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Not found.",
+        },
+        id: null,
+      });
+      return;
+    }
+
+    server = createServer();
+    transport = new StreamableHTTPServerTransport(createStatelessTransportOptions());
     registerTools(server, container);
     await server.connect(transport as unknown as Transport);
     await transport.handleRequest(request, response);
@@ -71,10 +79,34 @@ async function handleHttpRequest(
     }
   } finally {
     response.on("close", () => {
-      void transport.close();
-      void server.close();
+      void transport?.close();
+      void server?.close();
     });
   }
+}
+
+function registerShutdownHandlers(httpServer: ReturnType<typeof createHttpServer>): void {
+  let shuttingDown = false;
+
+  const shutdown = (signal: NodeJS.Signals): void => {
+    if (shuttingDown) {
+      return;
+    }
+
+    shuttingDown = true;
+    console.error(`[accessible-visit-mcp] received ${signal}, closing http server`);
+    httpServer.close((error) => {
+      if (error !== undefined) {
+        console.error("[accessible-visit-mcp] http server shutdown error", toLoggableError(error));
+        process.exitCode = 1;
+      }
+
+      process.exit();
+    });
+  };
+
+  process.once("SIGTERM", shutdown);
+  process.once("SIGINT", shutdown);
 }
 
 function createStatelessTransportOptions(): StreamableHTTPServerTransportOptions {

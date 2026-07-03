@@ -112,7 +112,7 @@ function createResult(
     radiusKm,
     riskLevel,
     festivals: nearbyFestivals,
-    cautions: createCautions(riskLevel, allNearbyFestivals, nearbyFestivals.length),
+    cautions: createCautions(riskLevel, nearbyFestivals, allNearbyFestivals.length),
   };
 }
 
@@ -166,11 +166,11 @@ function calculateRiskLevel(festivals: NearbyFestival[]): FestivalRiskLevel {
 function createCautions(
   riskLevel: FestivalRiskLevel,
   festivals: NearbyFestival[],
-  returnedFestivalCount: number,
+  totalFestivalCount: number,
 ): string[] {
   const truncationCaution =
-    festivals.length > returnedFestivalCount
-      ? [`주변 축제는 최대 ${returnedFestivalCount}개까지만 반환합니다.`]
+    totalFestivalCount > festivals.length
+      ? [`주변 축제는 최대 ${festivals.length}개까지만 반환합니다.`]
       : [];
 
   if (riskLevel === "LOW") {
