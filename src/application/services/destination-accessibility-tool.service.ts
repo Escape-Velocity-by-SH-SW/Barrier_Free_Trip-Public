@@ -1,4 +1,4 @@
-import type { AccessibilityService } from "./accessibility.service.js";
+import type { AccessibilityLookupResult, AccessibilityService } from "./accessibility.service.js";
 import type { DestinationResolver } from "./destination-resolver.js";
 import type { AccessibilityFacilities, TravelerType } from "../../domain/accessibility.js";
 import { travelerTypes } from "../../domain/accessibility.js";
@@ -146,7 +146,7 @@ export class DestinationAccessibilityToolService {
   }
 }
 
-function createContentIdAccessibilityMessage(status: "SUCCESS" | "NO_DATA" | "FAILED"): string {
+function createContentIdAccessibilityMessage(status: AccessibilityLookupResult["status"]): string {
   if (status === "SUCCESS") {
     return "contentId 기준 접근성 상세 정보를 조회했습니다. 관광지명, 주소, 좌표는 확정하지 못했습니다.";
   }
