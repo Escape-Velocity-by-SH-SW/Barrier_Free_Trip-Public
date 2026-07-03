@@ -83,7 +83,7 @@ function createTourismServices(env: NodeJS.ProcessEnv): {
 function createChargerService(env: NodeJS.ProcessEnv): ChargerService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_BASE_URL"),
-    timeoutMs: getRequiredPositiveIntegerEnv(env, "API_TIMEOUT_MS"),
+    timeoutMs: getExternalApiTimeoutMs(env, "WHEELCHAIR_CHARGER_API_TIMEOUT_MS"),
   });
   const apiClient = new WheelChairChargerApiClient(httpClient, {
     endpointUrl: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_ENDPOINT_PATH"),
@@ -97,7 +97,7 @@ function createChargerService(env: NodeJS.ProcessEnv): ChargerService {
 function createWeatherService(env: NodeJS.ProcessEnv): WeatherService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "KMA_WEATHER_API_BASE_URL"),
-    timeoutMs: getRequiredPositiveIntegerEnv(env, "API_TIMEOUT_MS"),
+    timeoutMs: getExternalApiTimeoutMs(env, "KMA_WEATHER_API_TIMEOUT_MS"),
   });
   const apiClient = new KmaWeatherApiClient(httpClient, {
     endpointUrl: getRequiredEnv(env, "KMA_WEATHER_API_ENDPOINT_PATH"),
@@ -147,15 +147,12 @@ function getRequiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   return value;
 }
 
-function getRequiredPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string): number {
-  const value = getRequiredEnv(env, name);
-  const parsedValue = Number(value);
-
-  if (!Number.isInteger(parsedValue) || parsedValue <= 0) {
-    throw new Error(`Environment variable ${name} must be a positive integer.`);
-  }
-
-  return parsedValue;
+function getExternalApiTimeoutMs(env: NodeJS.ProcessEnv, serviceSpecificName: string): number {
+  return (
+    getOptionalPositiveIntegerEnv(env, serviceSpecificName) ??
+    getOptionalPositiveIntegerEnv(env, "API_TIMEOUT_MS") ??
+    defaultExternalApiTimeoutMs
+  );
 }
 
 function getOptionalPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string): number | undefined {
