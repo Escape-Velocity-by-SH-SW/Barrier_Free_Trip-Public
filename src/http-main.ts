@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { createContainer } from "./bootstrap/create-container.js";
 import { createServer } from "./bootstrap/create-server.js";
 import { registerTools } from "./bootstrap/register-tools.js";
+import { toLoggableError } from "./application/services/logging.js";
 
 const envFilePath = resolve(dirname(fileURLToPath(import.meta.url)), "../.env");
 const defaultPort = 3000;
@@ -28,6 +29,12 @@ function main(): void {
   });
   httpServer.requestTimeout = requestTimeoutMs;
   httpServer.headersTimeout = headersTimeoutMs;
+
+  httpServer.on("error", (error) => {
+    console.error("[accessible-visit-mcp] streamable http server error", toLoggableError(error));
+    process.exitCode = 1;
+    process.exit();
+  });
 
   registerShutdownHandlers(httpServer);
 
@@ -134,18 +141,6 @@ function writeJsonResponse(
 ): void {
   response.writeHead(statusCode, { "content-type": "application/json" });
   response.end(JSON.stringify(body));
-}
-
-function toLoggableError(error: unknown): Record<string, unknown> {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      ...(error.stack !== undefined ? { stack: error.stack } : {}),
-    };
-  }
-
-  return { value: error };
 }
 
 try {

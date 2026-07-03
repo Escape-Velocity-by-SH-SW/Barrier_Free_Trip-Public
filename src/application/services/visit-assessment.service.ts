@@ -9,7 +9,7 @@ import type {
   TravelerType,
 } from "../../domain/accessibility.js";
 import type { NearbyWheelchairChargerResult } from "../../domain/charger.js";
-import type { Destination } from "../../domain/destination.js";
+import type { Destination, DestinationResolutionStatus } from "../../domain/destination.js";
 import type { DestinationFestivalRiskResult } from "../../domain/festival.js";
 import type {
   AccessibleVisitAssessment,
@@ -27,9 +27,17 @@ export interface VisitAssessmentRequest {
 }
 
 const defaultRadiusKm = 3;
+const maxCautionsPerDomain = 5;
+
+type VisitAssessmentSourceResult =
+  | DestinationAccessibilityResult
+  | DestinationWeatherResult
+  | NearbyWheelchairChargerResult
+  | DestinationFestivalRiskResult;
+type VisitAssessmentSourceStatus = VisitAssessmentSourceResult["status"];
 
 export class VisitAssessmentDestinationResolutionError extends Error {
-  constructor() {
+  constructor(readonly status: DestinationResolutionStatus) {
     super("Destination could not be resolved for accessible visit assessment.");
     this.name = "VisitAssessmentDestinationResolutionError";
   }
@@ -49,7 +57,7 @@ export class VisitAssessmentService {
     const resolution = await this.destinationResolver.resolve(request.destination);
 
     if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
-      throw new VisitAssessmentDestinationResolutionError();
+      throw new VisitAssessmentDestinationResolutionError(resolution.status);
     }
 
     const destination = resolution.destination;
@@ -219,9 +227,9 @@ function createCombinedCautions(
 function toCautionItems(
   domain: CautionItem["domains"][number],
   messages: string[],
-  status: string,
+  status: VisitAssessmentSourceStatus,
 ): CautionItem[] {
-  return messages.slice(0, 5).map((message, index) => ({
+  return messages.slice(0, maxCautionsPerDomain).map((message, index) => ({
     code: `${domain}_${index + 1}`,
     level: getCautionLevel(domain, status),
     domains: [domain],
@@ -230,7 +238,10 @@ function toCautionItems(
   }));
 }
 
-function getCautionLevel(domain: CautionItem["domains"][number], status: string): CautionItem["level"] {
+function getCautionLevel(
+  domain: CautionItem["domains"][number],
+  status: VisitAssessmentSourceStatus,
+): CautionItem["level"] {
   if (status === "FAILED") {
     return "HIGH";
   }

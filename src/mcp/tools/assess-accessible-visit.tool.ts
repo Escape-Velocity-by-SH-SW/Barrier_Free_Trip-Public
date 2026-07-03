@@ -3,7 +3,9 @@ import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
 import { VisitAssessmentDestinationResolutionError } from "../../application/services/visit-assessment.service.js";
+import { toLoggableError } from "../../application/services/logging.js";
 import { travelerTypes } from "../../domain/accessibility.js";
+import type { DestinationResolutionStatus } from "../../domain/destination.js";
 import { createToolResult } from "./tool-result.js";
 
 export const assessAccessibleVisitInputSchema = {
@@ -112,7 +114,7 @@ export function registerAssessAccessibleVisitTool(
           content: [
             {
               type: "text",
-              text: "FAILED: 관광지를 확정하지 못해 종합 방문 평가를 수행하지 못했습니다.",
+              text: createDestinationResolutionErrorMessage(error.status),
             },
           ],
         };
@@ -121,14 +123,14 @@ export function registerAssessAccessibleVisitTool(
   );
 }
 
-function toLoggableError(error: unknown): Record<string, unknown> {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      ...(error.stack !== undefined ? { stack: error.stack } : {}),
-    };
+function createDestinationResolutionErrorMessage(status: DestinationResolutionStatus): string {
+  if (status === "AMBIGUOUS_DESTINATION") {
+    return "AMBIGUOUS_DESTINATION: 관광지가 여러 개 검색되었습니다. 관광지명을 더 구체적으로 입력해주세요.";
   }
 
-  return { value: error };
+  if (status === "NO_DATA") {
+    return "NO_DATA: 입력한 관광지명으로 검색된 후보가 없습니다.";
+  }
+
+  return "FAILED: 관광지 검색 정보를 조회하지 못해 종합 방문 평가를 수행하지 못했습니다.";
 }
