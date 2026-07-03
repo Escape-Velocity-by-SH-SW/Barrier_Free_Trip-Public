@@ -26,6 +26,10 @@ export class FestivalRiskService {
 
     try {
       const festivals = await this.repository.findNearby({
+        destinationName: request.destination.name,
+        ...(request.destination.address !== undefined
+          ? { address: request.destination.address }
+          : {}),
         coordinates: request.destination.coordinates,
         visitDate: request.visitDate,
         radiusKm,
@@ -100,7 +104,7 @@ function createResult(
   const riskLevel = calculateRiskLevel(nearbyFestivals);
 
   return {
-    status: nearbyFestivals.length > 0 ? "SUCCESS" : "NO_DATA",
+    status: "SUCCESS",
     destination,
     visitDate,
     radiusKm,
@@ -159,17 +163,25 @@ function calculateRiskLevel(festivals: NearbyFestival[]): FestivalRiskLevel {
 
 function createCautions(riskLevel: FestivalRiskLevel, festivals: NearbyFestival[]): string[] {
   if (riskLevel === "LOW") {
-    return ["방문일 기준 주변 진행 축제는 확인되지 않았습니다."];
+    return [
+      "방문일 기준 반경 내 진행 축제는 확인되지 않았습니다.",
+      "좌표가 없는 축제 데이터는 거리 계산에서 제외될 수 있습니다.",
+    ];
   }
 
   if (riskLevel === "UNKNOWN") {
-    return ["축제 위치 정보가 부족해 거리 기반 위험도를 확정하기 어렵습니다."];
+    return [
+      "축제 위치 정보가 부족해 거리 기반 위험도를 확정하기 어렵습니다.",
+      "좌표가 없는 축제 데이터는 거리 계산에서 제외될 수 있습니다.",
+    ];
   }
 
-  const festivalNames = festivals.map((festival) => festival.name).join(", ");
+  const festivalNames = [...new Set(festivals.map((festival) => festival.name))].join(", ");
 
   if (riskLevel === "HIGH") {
-    return [`방문지와 가까운 축제가 진행 중입니다: ${festivalNames}. 교통과 주차 혼잡을 확인하세요.`];
+    return [
+      `방문지와 가까운 축제가 진행 중입니다: ${festivalNames}. 교통과 주차 혼잡을 확인하세요.`,
+    ];
   }
 
   return [`방문지 주변에서 축제가 진행 중입니다: ${festivalNames}. 이동 동선을 미리 확인하세요.`];

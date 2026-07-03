@@ -3,49 +3,78 @@ import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
 
+const sourceSchema = z.object({
+  name: z.string(),
+  status: z.enum(["SUCCESS", "NO_DATA", "FAILED"]),
+  description: z.string().optional(),
+});
+
+const destinationSchema = z.object({
+  name: z.string(),
+  contentId: z.string(),
+  contentTypeId: z.string(),
+  address: z.string().optional(),
+  coordinates: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }),
+});
+
+const candidateSchema = z.object({
+  contentId: z.string(),
+  contentTypeId: z.string(),
+  name: z.string(),
+  address: z.string().optional(),
+  coordinates: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }),
+  imageUrl: z.string().optional(),
+});
+
 export const getDestinationEventRiskInputSchema = {
-  destination: z.string().trim().min(1),
+  destination: z.string().trim().min(1).optional(),
+  destinationName: z.string().trim().min(1).optional(),
+  contentId: z.string().trim().min(1).optional(),
   visitDate: z.iso.date(),
   radiusKm: z.number().min(0.1).max(20).default(3),
 };
 
 export const getDestinationEventRiskOutputSchema = {
-  status: z.enum(["SUCCESS", "NO_DATA", "FAILED"]),
-  destination: z.object({
-    name: z.string(),
-    contentId: z.string(),
-    contentTypeId: z.string(),
-    address: z.string().optional(),
-    coordinates: z.object({
-      latitude: z.number(),
-      longitude: z.number(),
-    }),
-  }),
+  status: z.enum(["SUCCESS", "NO_DATA", "AMBIGUOUS_DESTINATION", "FAILED"]),
+  message: z.string().optional(),
+  destination: destinationSchema.optional(),
   visitDate: z.iso.date(),
   radiusKm: z.number().positive(),
-  riskLevel: z.enum(["LOW", "MEDIUM", "HIGH", "UNKNOWN"]),
-  festivals: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      venue: z.string().optional(),
-      address: z.string().optional(),
-      startDate: z.string().optional(),
-      endDate: z.string().optional(),
-      distanceKm: z.number().optional(),
-      phoneNumber: z.string().optional(),
-      referenceDate: z.string().optional(),
-    }),
-  ),
+  riskLevel: z.enum(["LOW", "MEDIUM", "HIGH", "UNKNOWN"]).optional(),
+  festivals: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        venue: z.string().optional(),
+        address: z.string().optional(),
+        startDate: z.string().optional(),
+        endDate: z.string().optional(),
+        distanceKm: z.number().optional(),
+        phoneNumber: z.string().optional(),
+        referenceDate: z.string().optional(),
+      }),
+    )
+    .optional(),
   cautions: z.array(z.string()),
+  candidates: z.array(candidateSchema).optional(),
+  sources: z.array(sourceSchema),
 };
+
+type GetDestinationEventRiskOutput = z.output<
+  z.ZodObject<typeof getDestinationEventRiskOutputSchema>
+>;
 
 export function registerGetDestinationEventRiskTool(
   server: McpServer,
   container: AppContainer,
 ): void {
-  void container;
-
   server.registerTool(
     "get_destination_event_risk",
     {
@@ -57,14 +86,25 @@ export function registerGetDestinationEventRiskTool(
         readOnlyHint: true,
       },
     },
-    () => ({
-      isError: true,
-      content: [
-        {
-          type: "text",
-          text: "NOT_IMPLEMENTED: 축제 API와 Application Service 연결은 아직 구현되지 않았습니다.",
-        },
-      ],
-    }),
+    async (input) => {
+      return createToolResult(
+        await container.services.destinationEventRiskToolService.execute(input),
+      );
+    },
   );
+}
+
+function createToolResult(output: GetDestinationEventRiskOutput): {
+  structuredContent: GetDestinationEventRiskOutput;
+  content: Array<{ type: "text"; text: string }>;
+} {
+  return {
+    structuredContent: output,
+    content: [
+      {
+        type: "text",
+        text: JSON.stringify(output, null, 2),
+      },
+    ],
+  };
 }

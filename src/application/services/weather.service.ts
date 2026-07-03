@@ -130,7 +130,10 @@ function getDatePart(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormat
   return part.value;
 }
 
-function createCoordinateDestination(destinationName: string, coordinates: Coordinates): Destination {
+function createCoordinateDestination(
+  destinationName: string,
+  coordinates: Coordinates,
+): Destination {
   return {
     name: destinationName,
     contentId: "coordinate-input",
@@ -219,7 +222,7 @@ function hasRainRisk(forecast: DailyWeatherForecast): boolean {
   );
 }
 
-/** 최대 1시간 강수량 대표값이 강한 비로 볼 수 있는 수준인지 판단한다. - 필요여부 추가 논의 필요 */ 
+/** 최대 1시간 강수량 대표값이 강한 비로 볼 수 있는 수준인지 판단한다. - 필요여부 추가 논의 필요 */
 function hasHeavyRainRisk(forecast: DailyWeatherForecast): boolean {
   return (
     forecast.maxPrecipitationAmountMm !== undefined &&

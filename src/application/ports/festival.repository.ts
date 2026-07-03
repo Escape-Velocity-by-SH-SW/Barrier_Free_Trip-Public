@@ -3,6 +3,8 @@ import type { Coordinates } from "../../domain/destination.js";
 import type { FestivalSourceData } from "../../domain/festival.js";
 
 export interface FestivalQuery {
+  destinationName?: string;
+  address?: string;
   coordinates: Coordinates;
   visitDate: string;
   radiusKm: number;
