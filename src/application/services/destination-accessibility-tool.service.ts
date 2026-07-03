@@ -100,8 +100,7 @@ export class DestinationAccessibilityToolService {
 
     return {
       ...result,
-      message:
-        "contentId만으로 접근성 상세 정보는 조회했지만 관광지명, 주소, 좌표는 확정하지 못했습니다.",
+      message: createContentIdAccessibilityMessage(result.status),
       sources: [
         {
           name: "한국관광공사 detailWithTour2",
@@ -145,6 +144,18 @@ export class DestinationAccessibilityToolService {
       ],
     };
   }
+}
+
+function createContentIdAccessibilityMessage(status: "SUCCESS" | "NO_DATA" | "FAILED"): string {
+  if (status === "SUCCESS") {
+    return "contentId 기준 접근성 상세 정보를 조회했습니다. 관광지명, 주소, 좌표는 확정하지 못했습니다.";
+  }
+
+  if (status === "NO_DATA") {
+    return "contentId 기준 접근성 상세 정보를 조회했지만 제공된 편의시설 정보가 없습니다.";
+  }
+
+  return "contentId 기준 접근성 상세 정보를 조회하지 못했습니다.";
 }
 
 function createResolutionFailureResult(
