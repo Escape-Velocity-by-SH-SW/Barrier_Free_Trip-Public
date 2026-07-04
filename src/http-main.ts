@@ -4,22 +4,19 @@ import { config } from "dotenv";
 import { createServer as createHttpServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { createContainer } from "./bootstrap/create-container.js";
 import { createServer } from "./bootstrap/create-server.js";
 import { registerTools } from "./bootstrap/register-tools.js";
 import { toLoggableError } from "./application/services/logging.js";
 
-const envFilePath = resolve(dirname(fileURLToPath(import.meta.url)), "../.env");
 const defaultPort = 3000;
 const mcpPath = "/mcp";
 const requestTimeoutMs = 30_000;
 const headersTimeoutMs = 10_000;
 
 function main(): void {
-  config({ path: envFilePath, quiet: true });
+  config({ quiet: true });
 
   const container = createContainer();
   const port = getPort(process.env.PORT);

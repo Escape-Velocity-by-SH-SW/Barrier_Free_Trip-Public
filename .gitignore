@@ -2,8 +2,8 @@ node_modules/
 dist/
 coverage/
 
-.env
-.env.*
+# .env
+# .env.*
 
 *.log
 .DS_Store
