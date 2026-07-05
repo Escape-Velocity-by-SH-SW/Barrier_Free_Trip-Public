@@ -252,7 +252,7 @@ src/application/ports/*.ts
 src/mcp/tools/*.tool.ts의 Schema
 ```
 
-계약 변경 시 관련 Service, Adapter, Tool, fixture, 테스트를 함께 수정한다.
+계약 변경 시 관련 Service, Adapter, Tool, fixture를 함께 수정한다.
 작업 목적과 무관한 계약 리팩터링은 하지 않는다.
 
 ## Tests
