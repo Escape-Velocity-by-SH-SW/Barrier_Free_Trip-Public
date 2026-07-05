@@ -59,7 +59,7 @@ export function registerFindNearbyWheelchairChargersTool(
     {
       title: "Find Nearby Wheelchair Chargers",
       description:
-        "Accessible Visit MCP(무장애 방문 MCP): 관광지 주변 전동휠체어 급속충전소를 조회합니다.",
+        "Accessible Visit MCP: Find nearby rapid charging stations for powered wheelchairs around a destination.",
       inputSchema: findNearbyWheelchairChargersInputSchema,
       outputSchema: findNearbyWheelchairChargersOutputSchema,
       annotations: {

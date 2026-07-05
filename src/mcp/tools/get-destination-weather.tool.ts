@@ -87,7 +87,7 @@ export function registerGetDestinationWeatherTool(
     {
       title: "Get Destination Weather",
       description:
-        "Accessible Visit MCP(무장애 방문 MCP): 관광지명과 방문일을 기준으로 이동 조건에 필요한 날씨 유의사항을 조회합니다.",
+        "Accessible Visit MCP: Get weather-related mobility cautions for a destination and visit date.",
       inputSchema: getDestinationWeatherInputSchema,
       outputSchema: getDestinationWeatherOutputSchema,
       annotations: {

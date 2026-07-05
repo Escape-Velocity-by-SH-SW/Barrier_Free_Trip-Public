@@ -73,7 +73,7 @@ export function registerAssessAccessibleVisitTool(
     {
       title: "Assess Accessible Visit",
       description:
-        "Accessible Visit MCP(무장애 방문 MCP): 편의시설, 날씨, 충전소, 축제 정보를 함께 조회하여 종합 방문 유의사항을 반환합니다.",
+        "Accessible Visit MCP: Assess a destination visit by combining accessibility facilities, weather, nearby wheelchair chargers, and local event risk into practical visit cautions.",
       inputSchema: assessAccessibleVisitInputSchema,
       outputSchema: assessAccessibleVisitOutputSchema,
       annotations: {

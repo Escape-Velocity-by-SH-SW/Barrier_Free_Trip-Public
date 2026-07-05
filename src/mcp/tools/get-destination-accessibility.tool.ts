@@ -90,7 +90,7 @@ export function registerGetDestinationAccessibilityTool(
     {
       title: "Get Destination Accessibility",
       description:
-        "Accessible Visit MCP(무장애 방문 MCP): 관광지의 무장애 편의시설 정보를 조회합니다.",
+        "Accessible Visit MCP: Look up accessibility facilities and mobility-related accommodations for a destination.",
       inputSchema: getDestinationAccessibilityInputSchema,
       outputSchema: getDestinationAccessibilityOutputSchema,
       annotations: {

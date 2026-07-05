@@ -77,7 +77,7 @@ export function registerGetDestinationEventRiskTool(
     {
       title: "Get Destination Event Risk",
       description:
-        "Accessible Visit MCP(무장애 방문 MCP): 방문일에 관광지 주변 축제를 조회하고 행사 기반 혼잡 위험을 반환합니다.",
+        "Accessible Visit MCP: Check nearby festivals and events for a destination and visit date to estimate event-based crowding risk.",
       inputSchema: getDestinationEventRiskInputSchema,
       outputSchema: getDestinationEventRiskOutputSchema,
       annotations: {
