@@ -18,7 +18,7 @@ import { KoreaTourApiClient } from "../infrastructure/tourism/korea-tour-api.cli
 import { KmaWeatherApiClient } from "../infrastructure/weather/kma-weather-api.client.js";
 import { KmaWeatherAdapter } from "../infrastructure/weather/kma-weather.adapter.js";
 
-const defaultExternalApiTimeoutMs = 2_500;
+const DEFAULT_API_TIMEOUT_MS = 3_000;
 
 export interface AppContainer {
   readonly services: {
@@ -81,10 +81,7 @@ function createTourismServices(env: NodeJS.ProcessEnv): {
 } {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "TOUR_API_BASE_URL"),
-    ...optionalNumberProperty(
-      "timeoutMs",
-      getOptionalPositiveIntegerEnv(env, "TOUR_API_TIMEOUT_MS") ?? defaultExternalApiTimeoutMs,
-    ),
+    timeoutMs: getApiTimeoutMs(env),
   });
   const apiClient = new KoreaTourApiClient(httpClient, {
     serviceKey: getRequiredEnv(env, "TOUR_API_SERVICE_KEY"),
@@ -106,7 +103,7 @@ function createTourismServices(env: NodeJS.ProcessEnv): {
 function createChargerService(env: NodeJS.ProcessEnv): ChargerService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_BASE_URL"),
-    timeoutMs: getExternalApiTimeoutMs(env, "WHEELCHAIR_CHARGER_API_TIMEOUT_MS"),
+    timeoutMs: getApiTimeoutMs(env),
   });
   const apiClient = new WheelChairChargerApiClient(httpClient, {
     endpointUrl: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_ENDPOINT_PATH"),
@@ -120,7 +117,7 @@ function createChargerService(env: NodeJS.ProcessEnv): ChargerService {
 function createWeatherService(env: NodeJS.ProcessEnv): WeatherService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "KMA_WEATHER_API_BASE_URL"),
-    timeoutMs: getExternalApiTimeoutMs(env, "KMA_WEATHER_API_TIMEOUT_MS"),
+    timeoutMs: getApiTimeoutMs(env),
   });
   const apiClient = new KmaWeatherApiClient(httpClient, {
     endpointUrl: getRequiredEnv(env, "KMA_WEATHER_API_ENDPOINT_PATH"),
@@ -134,10 +131,7 @@ function createWeatherService(env: NodeJS.ProcessEnv): WeatherService {
 function createFestivalRiskService(env: NodeJS.ProcessEnv): FestivalRiskService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "FESTIVAL_API_BASE_URL"),
-    ...optionalNumberProperty(
-      "timeoutMs",
-      getOptionalPositiveIntegerEnv(env, "FESTIVAL_API_TIMEOUT_MS") ?? defaultExternalApiTimeoutMs,
-    ),
+    timeoutMs: getApiTimeoutMs(env),
   });
   const apiClient = new FestivalApiClient(httpClient, {
     path: getOptionalEnv(env, "FESTIVAL_API_ENDPOINT_PATH") ?? "",
@@ -170,12 +164,8 @@ function getRequiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   return value;
 }
 
-function getExternalApiTimeoutMs(env: NodeJS.ProcessEnv, serviceSpecificName: string): number {
-  return (
-    getOptionalPositiveIntegerEnv(env, serviceSpecificName) ??
-    getOptionalPositiveIntegerEnv(env, "API_TIMEOUT_MS") ??
-    defaultExternalApiTimeoutMs
-  );
+function getApiTimeoutMs(env: NodeJS.ProcessEnv): number {
+  return getOptionalPositiveIntegerEnv(env, "API_TIMEOUT_MS") ?? DEFAULT_API_TIMEOUT_MS;
 }
 
 function getOptionalPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string): number | undefined {
