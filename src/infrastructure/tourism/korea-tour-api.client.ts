@@ -18,6 +18,7 @@ export interface KoreaTourApiClientOptions {
 
 export interface SearchKeywordRequest {
   keyword: string;
+  contentTypeId?: string;
   areaCode?: string;
   sigunguCode?: string;
   cat1?: string;
@@ -77,6 +78,7 @@ export class KoreaTourApiClient {
       pageNo: request.pageNo ?? this.defaultPageNo,
       numOfRows: request.numOfRows ?? this.defaultNumOfRows,
       keyword: request.keyword,
+      contentTypeId: request.contentTypeId,
       areaCode: request.areaCode,
       sigunguCode: request.sigunguCode,
       cat1: request.cat1,

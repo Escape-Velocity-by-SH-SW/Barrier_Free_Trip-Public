@@ -1,6 +1,6 @@
 import type { TourismAccessibilityRepository } from "../../application/ports/tourism-accessibility.repository.js";
 import type { AccessibilitySourceData } from "../../domain/accessibility.js";
-import type { DestinationCandidate } from "../../domain/destination.js";
+import { touristAttractionContentTypeId, type DestinationCandidate } from "../../domain/destination.js";
 import type { KoreaTourApiClient } from "./korea-tour-api.client.js";
 import {
   mapDetailWithTourResponseToAccessibilitySourceData,
@@ -11,7 +11,11 @@ export class KoreaTourAccessibilityAdapter implements TourismAccessibilityReposi
   constructor(private readonly client: KoreaTourApiClient) {}
 
   async searchDestination(keyword: string): Promise<DestinationCandidate[]> {
-    const response = await this.client.searchKeyword({ keyword });
+    const response = await this.client.searchKeyword({
+      keyword,
+      contentTypeId: touristAttractionContentTypeId,
+      arrange: "A",
+    });
     return mapSearchKeywordResponseToDestinationCandidates(response, keyword);
   }
 
