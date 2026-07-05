@@ -145,16 +145,6 @@ console.error("[weather] request failed");
 - `URL`, `URLSearchParams` 사용
 - 모든 외부 요청에 timeout 적용
 
-## Tests
-
-- 파일명: `*.test.ts`
-- 테스트명은 행위 중심
-- Unit Test에서 네트워크 호출 금지
-- Adapter Test는 fixture 사용
-- 실제 API 테스트는 기본 테스트에서 제외
-- 버그 수정 시 재현 테스트 추가
-- 경계값과 상태값 우선 검증
-
 ## Formatting
 
 - 들여쓰기 2칸

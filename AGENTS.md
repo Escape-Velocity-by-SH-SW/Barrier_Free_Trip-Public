@@ -183,6 +183,12 @@ Mock Handler는 실제 Service 연결 시 제거하거나 Service 호출로 교�
 - `contentId`, 주소, 위경도 반환, 관광지 사진
 - 첫 번째 검색 결과를 무조건 선택하지 않음
 
+`get_destination_weather`, `find_nearby_wheelchair_chargers`,
+`get_destination_accessibility`, `get_destination_event_risk`,
+`assess_accessible_visit`는 사용자가 입력한 관광지명을 내부에서
+`DestinationResolver`로 확정한 뒤 좌표, `contentId`, 주소를 사용한다.
+LLM이나 MCP client가 위경도를 직접 추출해 Tool input으로 넘기지 않는다.
+
 ### VisitAssessmentService
 
 종합 요청 오케스트레이터다.
@@ -224,6 +230,7 @@ CONFLICTING
 
 ```text
 SUCCESS
+AMBIGUOUS_DESTINATION
 NO_DATA
 OUT_OF_RANGE
 FAILED
