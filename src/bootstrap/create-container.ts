@@ -3,6 +3,7 @@ import { ChargerService } from "../application/services/charger.service.js";
 import { DestinationAccessibilityToolService } from "../application/services/destination-accessibility-tool.service.js";
 import { DestinationEventRiskToolService } from "../application/services/destination-event-risk-tool.service.js";
 import { DestinationResolver } from "../application/services/destination-resolver.js";
+import { DestinationWeatherToolService } from "../application/services/destination-weather-tool.service.js";
 import { FestivalRiskService } from "../application/services/festival-risk.service.js";
 import { NearbyWheelchairChargersToolService } from "../application/services/nearby-wheelchair-chargers-tool.service.js";
 import { VisitAssessmentService } from "../application/services/visit-assessment.service.js";
@@ -27,6 +28,7 @@ export interface AppContainer {
     readonly accessibilityService: AccessibilityService;
     readonly festivalRiskService: FestivalRiskService;
     readonly visitAssessmentService: VisitAssessmentService;
+    readonly destinationWeatherToolService: DestinationWeatherToolService;
     readonly nearbyWheelchairChargersToolService: NearbyWheelchairChargersToolService;
     readonly destinationAccessibilityToolService: DestinationAccessibilityToolService;
     readonly destinationEventRiskToolService: DestinationEventRiskToolService;
@@ -52,6 +54,10 @@ export function createContainer(env: NodeJS.ProcessEnv = process.env): AppContai
         weatherService,
         chargerService,
         festivalRiskService,
+      ),
+      destinationWeatherToolService: new DestinationWeatherToolService(
+        tourismServices.destinationResolver,
+        weatherService,
       ),
       nearbyWheelchairChargersToolService: new NearbyWheelchairChargersToolService(
         tourismServices.destinationResolver,

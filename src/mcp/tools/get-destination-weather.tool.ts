@@ -11,30 +11,47 @@ const weatherRiskLevels = ["LOW", "CAUTION", "HIGH"] as const;
 
 const weatherRiskTypes = ["HEAT", "COLD", "RAIN", "HEAVY_RAIN", "SNOW", "ICY_ROAD"] as const;
 
+const sourceSchema = z.object({
+  name: z.string(),
+  status: z.enum(["SUCCESS", "NO_DATA", "FAILED"]),
+  description: z.string().optional(),
+});
+
+const destinationSchema = z.object({
+  name: z.string(),
+  contentId: z.string(),
+  contentTypeId: z.string(),
+  address: z.string().optional(),
+  coordinates: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }),
+});
+
+const candidateSchema = z.object({
+  contentId: z.string(),
+  contentTypeId: z.string(),
+  name: z.string(),
+  address: z.string().optional(),
+  coordinates: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }),
+  imageUrl: z.string().optional(),
+});
+
 /** get_destination_weather tool이 MCP client로부터 받는 입력 계약이다. */
 export const getDestinationWeatherInputSchema = {
   destination: z.string().trim().min(1),
-  coordinates: z.object({
-    latitude: z.number().min(-90).max(90),
-    longitude: z.number().min(-180).max(180),
-  }),
   visitDate: z.iso.date(),
   travelerType: z.enum(travelerTypes).optional(),
 };
 
 /** WeatherService의 DestinationWeatherResult를 MCP structuredContent로 노출하는 출력 계약이다. */
 export const getDestinationWeatherOutputSchema = {
-  status: z.enum(["AVAILABLE", "OUT_OF_RANGE", "NO_DATA", "FAILED"]),
-  destination: z.object({
-    name: z.string(),
-    contentId: z.string(),
-    contentTypeId: z.string(),
-    address: z.string().optional(),
-    coordinates: z.object({
-      latitude: z.number(),
-      longitude: z.number(),
-    }),
-  }),
+  status: z.enum(["AVAILABLE", "OUT_OF_RANGE", "NO_DATA", "FAILED", "AMBIGUOUS_DESTINATION"]),
+  message: z.string().optional(),
+  destination: destinationSchema.optional(),
   visitDate: z.iso.date(),
   travelerType: z.enum(travelerTypes).optional(),
   forecasts: z.array(
@@ -53,6 +70,8 @@ export const getDestinationWeatherOutputSchema = {
     riskTypes: z.array(z.enum(weatherRiskTypes)),
     cautions: z.array(z.string()),
   }),
+  candidates: z.array(candidateSchema).optional(),
+  sources: z.array(sourceSchema),
 };
 
 type GetDestinationWeatherInput = z.output<z.ZodObject<typeof getDestinationWeatherInputSchema>>;
@@ -68,7 +87,7 @@ export function registerGetDestinationWeatherTool(
     {
       title: "Get Destination Weather",
       description:
-        "Accessible Visit MCP(무장애 방문 MCP): 관광지 좌표와 방문일을 기준으로 이동 조건에 필요한 날씨 유의사항을 조회합니다.",
+        "Accessible Visit MCP(무장애 방문 MCP): 관광지명과 방문일을 기준으로 이동 조건에 필요한 날씨 유의사항을 조회합니다.",
       inputSchema: getDestinationWeatherInputSchema,
       outputSchema: getDestinationWeatherOutputSchema,
       annotations: {
@@ -87,14 +106,13 @@ export function registerGetDestinationWeatherTool(
   );
 }
 
-/** Tool 입력을 WeatherService의 좌표 기반 조회 요청으로 변환한다. */
+/** Tool 입력을 관광지 검색 기반 날씨 조회 요청으로 변환한다. */
 async function getDestinationWeather(
   input: GetDestinationWeatherInput,
   container: AppContainer,
 ): Promise<GetDestinationWeatherOutput> {
-  return container.services.weatherService.getDestinationWeatherByCoordinates({
-    destinationName: input.destination,
-    coordinates: input.coordinates,
+  return container.services.destinationWeatherToolService.execute({
+    destination: input.destination,
     visitDate: input.visitDate,
     ...(input.travelerType !== undefined ? { travelerType: input.travelerType } : {}),
   });
