@@ -27,16 +27,6 @@ export class DestinationResolver {
       return { status: "NO_DATA" };
     }
 
-    const exactMatches = candidates.filter((candidate) => candidate.matchType === "EXACT");
-    const onlyExactMatch = exactMatches.at(0);
-
-    if (exactMatches.length === 1 && onlyExactMatch !== undefined) {
-      return {
-        status: "RESOLVED",
-        destination: toDestination(onlyExactMatch),
-      };
-    }
-
     const onlyCandidate = candidates.at(0);
 
     if (candidates.length === 1 && onlyCandidate !== undefined) {
@@ -48,7 +38,7 @@ export class DestinationResolver {
 
     return {
       status: "AMBIGUOUS_DESTINATION",
-      candidates: exactMatches.length > 1 ? exactMatches : candidates,
+      candidates,
     };
   }
 

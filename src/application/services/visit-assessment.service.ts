@@ -9,7 +9,11 @@ import type {
   TravelerType,
 } from "../../domain/accessibility.js";
 import type { NearbyWheelchairChargerResult } from "../../domain/charger.js";
-import type { Destination, DestinationResolutionStatus } from "../../domain/destination.js";
+import type {
+  Destination,
+  DestinationCandidate,
+  DestinationResolutionStatus,
+} from "../../domain/destination.js";
 import type { DestinationFestivalRiskResult } from "../../domain/festival.js";
 import type {
   AccessibleVisitAssessment,
@@ -21,6 +25,7 @@ import type { DestinationWeatherResult } from "../../domain/weather.js";
 
 export interface VisitAssessmentRequest {
   destination: string;
+  contentId?: string;
   visitDate: string;
   travelerType: TravelerType;
   radiusKm?: number;
@@ -37,7 +42,10 @@ type VisitAssessmentSourceResult =
 type VisitAssessmentSourceStatus = VisitAssessmentSourceResult["status"];
 
 export class VisitAssessmentDestinationResolutionError extends Error {
-  constructor(readonly status: DestinationResolutionStatus) {
+  constructor(
+    readonly status: DestinationResolutionStatus,
+    readonly candidates: DestinationCandidate[] = [],
+  ) {
     super("Destination could not be resolved for accessible visit assessment.");
     this.name = "VisitAssessmentDestinationResolutionError";
   }
@@ -54,10 +62,19 @@ export class VisitAssessmentService {
 
   async assess(request: VisitAssessmentRequest): Promise<AccessibleVisitAssessment> {
     const radiusKm = request.radiusKm ?? defaultRadiusKm;
-    const resolution = await this.destinationResolver.resolve(request.destination);
+    const resolution =
+      request.contentId !== undefined
+        ? await this.destinationResolver.resolveByContentId({
+            contentId: request.contentId,
+            destinationName: request.destination,
+          })
+        : await this.destinationResolver.resolve(request.destination);
 
     if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
-      throw new VisitAssessmentDestinationResolutionError(resolution.status);
+      throw new VisitAssessmentDestinationResolutionError(
+        resolution.status,
+        resolution.candidates ?? [],
+      );
     }
 
     const destination = resolution.destination;
