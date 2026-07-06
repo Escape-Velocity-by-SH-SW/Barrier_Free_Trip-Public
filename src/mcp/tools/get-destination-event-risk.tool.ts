@@ -77,7 +77,7 @@ export function registerGetDestinationEventRiskTool(
     {
       title: "Get Destination Event Risk",
       description:
-        "Accessible Visit MCP: Check nearby festivals and events for a destination and visit date to estimate event-based crowding risk.",
+        "[Bopok(보폭)] Check nearby festivals and events for a destination and visit date to estimate event-based crowding risk.",
       inputSchema: getDestinationEventRiskInputSchema,
       outputSchema: getDestinationEventRiskOutputSchema,
       annotations: {

@@ -73,7 +73,7 @@ export function registerAssessAccessibleVisitTool(
     {
       title: "Assess Accessible Visit",
       description:
-        "Accessible Visit MCP: Assess a destination visit by combining accessibility facilities, weather, nearby wheelchair chargers, and local event risk into practical visit cautions.",
+        "[Bopok(보폭)] Assess a destination visit by combining accessibility facilities, weather, nearby wheelchair chargers, and local event risk into practical visit cautions.",
       inputSchema: assessAccessibleVisitInputSchema,
       outputSchema: assessAccessibleVisitOutputSchema,
       annotations: {

@@ -90,7 +90,7 @@ export function registerGetDestinationAccessibilityTool(
     {
       title: "Get Destination Accessibility",
       description:
-        "Accessible Visit MCP: Look up accessibility facilities and mobility-related accommodations for a destination.",
+        "[Bopok(보폭)] Look up accessibility facilities and mobility-related accommodations for a destination.",
       inputSchema: getDestinationAccessibilityInputSchema,
       outputSchema: getDestinationAccessibilityOutputSchema,
       annotations: {

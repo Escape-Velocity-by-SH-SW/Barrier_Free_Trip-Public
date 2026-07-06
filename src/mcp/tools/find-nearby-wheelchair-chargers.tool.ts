@@ -59,7 +59,7 @@ export function registerFindNearbyWheelchairChargersTool(
     {
       title: "Find Nearby Wheelchair Chargers",
       description:
-        "Accessible Visit MCP: Find nearby rapid charging stations for powered wheelchairs around a destination.",
+        "[Bopok(보폭)] Find nearby rapid charging stations for powered wheelchairs around a destination.",
       inputSchema: findNearbyWheelchairChargersInputSchema,
       outputSchema: findNearbyWheelchairChargersOutputSchema,
       annotations: {

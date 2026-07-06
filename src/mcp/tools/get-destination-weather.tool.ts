@@ -87,7 +87,7 @@ export function registerGetDestinationWeatherTool(
     {
       title: "Get Destination Weather",
       description:
-        "Accessible Visit MCP: Get weather-related mobility cautions for a destination and visit date.",
+        "[Bopok(보폭)] Get weather-related mobility cautions for a destination and visit date.",
       inputSchema: getDestinationWeatherInputSchema,
       outputSchema: getDestinationWeatherOutputSchema,
       annotations: {
