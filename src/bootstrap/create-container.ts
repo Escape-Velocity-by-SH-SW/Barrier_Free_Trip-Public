@@ -18,7 +18,14 @@ import { KoreaTourApiClient } from "../infrastructure/tourism/korea-tour-api.cli
 import { KmaWeatherApiClient } from "../infrastructure/weather/kma-weather-api.client.js";
 import { KmaWeatherAdapter } from "../infrastructure/weather/kma-weather.adapter.js";
 
-const DEFAULT_API_TIMEOUT_MS = 3_000;
+const API_TIMEOUT_MS = 3_000;
+const WHEELCHAIR_CHARGER_API_ENDPOINT_PATH = "/tn_pubr_public_electr_whlchairhgh_spdchrgr_api";
+const KMA_WEATHER_API_ENDPOINT_PATH = "/getVilageFcst";
+const TOUR_API_MOBILE_OS = "ETC";
+const TOUR_API_MOBILE_APP = "BarrierFreeTrip";
+const TOUR_API_DEFAULT_NUM_OF_ROWS = 10;
+const FESTIVAL_API_ENDPOINT_PATH = "/openapi/tn_pubr_public_cltur_fstvl_api";
+const FESTIVAL_API_DEFAULT_PER_PAGE = 1_000;
 
 export interface AppContainer {
   readonly services: {
@@ -81,16 +88,13 @@ function createTourismServices(env: NodeJS.ProcessEnv): {
 } {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "TOUR_API_BASE_URL"),
-    timeoutMs: getApiTimeoutMs(env),
+    timeoutMs: API_TIMEOUT_MS,
   });
   const apiClient = new KoreaTourApiClient(httpClient, {
     serviceKey: getRequiredEnv(env, "TOUR_API_SERVICE_KEY"),
-    mobileOs: getOptionalEnv(env, "TOUR_API_MOBILE_OS") ?? "ETC",
-    mobileApp: getOptionalEnv(env, "TOUR_API_MOBILE_APP") ?? "BarrierFreeTrip",
-    ...optionalNumberProperty(
-      "defaultNumOfRows",
-      getOptionalPositiveIntegerEnv(env, "TOUR_API_DEFAULT_NUM_OF_ROWS"),
-    ),
+    mobileOs: TOUR_API_MOBILE_OS,
+    mobileApp: TOUR_API_MOBILE_APP,
+    defaultNumOfRows: TOUR_API_DEFAULT_NUM_OF_ROWS,
   });
   const repository = new KoreaTourAccessibilityAdapter(apiClient);
 
@@ -103,10 +107,10 @@ function createTourismServices(env: NodeJS.ProcessEnv): {
 function createChargerService(env: NodeJS.ProcessEnv): ChargerService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_BASE_URL"),
-    timeoutMs: getApiTimeoutMs(env),
+    timeoutMs: API_TIMEOUT_MS,
   });
   const apiClient = new WheelChairChargerApiClient(httpClient, {
-    endpointUrl: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_ENDPOINT_PATH"),
+    endpointUrl: WHEELCHAIR_CHARGER_API_ENDPOINT_PATH,
     serviceKey: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_SERVICE_KEY"),
   });
   const repository = new WheelChairChargerAdapter(apiClient);
@@ -117,10 +121,10 @@ function createChargerService(env: NodeJS.ProcessEnv): ChargerService {
 function createWeatherService(env: NodeJS.ProcessEnv): WeatherService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "KMA_WEATHER_API_BASE_URL"),
-    timeoutMs: getApiTimeoutMs(env),
+    timeoutMs: API_TIMEOUT_MS,
   });
   const apiClient = new KmaWeatherApiClient(httpClient, {
-    endpointUrl: getRequiredEnv(env, "KMA_WEATHER_API_ENDPOINT_PATH"),
+    endpointUrl: KMA_WEATHER_API_ENDPOINT_PATH,
     serviceKey: getRequiredEnv(env, "KMA_WEATHER_API_SERVICE_KEY"),
   });
   const repository = new KmaWeatherAdapter(apiClient);
@@ -131,15 +135,12 @@ function createWeatherService(env: NodeJS.ProcessEnv): WeatherService {
 function createFestivalRiskService(env: NodeJS.ProcessEnv): FestivalRiskService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "FESTIVAL_API_BASE_URL"),
-    timeoutMs: getApiTimeoutMs(env),
+    timeoutMs: API_TIMEOUT_MS,
   });
   const apiClient = new FestivalApiClient(httpClient, {
-    path: getOptionalEnv(env, "FESTIVAL_API_ENDPOINT_PATH") ?? "",
+    path: FESTIVAL_API_ENDPOINT_PATH,
     serviceKey: getRequiredEnv(env, "FESTIVAL_API_SERVICE_KEY"),
-    ...optionalNumberProperty(
-      "defaultPerPage",
-      getOptionalPositiveIntegerEnv(env, "FESTIVAL_API_DEFAULT_PER_PAGE"),
-    ),
+    defaultPerPage: FESTIVAL_API_DEFAULT_PER_PAGE,
     ...optionalNumberProperty(
       "fullScanPageSize",
       getOptionalPositiveIntegerEnv(env, "FESTIVAL_API_FULL_SCAN_PAGE_SIZE"),
@@ -162,10 +163,6 @@ function getRequiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   }
 
   return value;
-}
-
-function getApiTimeoutMs(env: NodeJS.ProcessEnv): number {
-  return getOptionalPositiveIntegerEnv(env, "API_TIMEOUT_MS") ?? DEFAULT_API_TIMEOUT_MS;
 }
 
 function getOptionalPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string): number | undefined {
