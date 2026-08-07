@@ -139,7 +139,9 @@ console.error("[weather] request failed");
 ## Security
 
 - 인증키는 환경변수만 사용
-- `.env` 커밋 금지
+- 런타임 환경변수는 컨테이너에서 주입
+- 환경변수 파일 로딩 및 `dotenv` 사용 금지
+- 환경변수 파일 커밋 금지
 - 시작 시 환경변수 검증
 - 입력을 URL 문자열에 직접 연결 금지
 - `URL`, `URLSearchParams` 사용

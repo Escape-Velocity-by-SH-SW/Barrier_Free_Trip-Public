@@ -313,6 +313,43 @@ Tool 입력 예시:
 - 사용자 계정과 방문 이력
 - 데이터 영구 저장
 
+## 런타임 환경변수
+
+서버는 환경변수 파일을 읽지 않습니다. 배포 환경에서 MCP 서버 컨테이너를 실행할 때
+다음 환경변수를 직접 주입해야 합니다.
+
+필수 환경변수:
+
+```text
+TOUR_API_BASE_URL
+TOUR_API_SERVICE_KEY
+KMA_WEATHER_API_BASE_URL
+KMA_WEATHER_API_ENDPOINT_PATH
+KMA_WEATHER_API_SERVICE_KEY
+WHEELCHAIR_CHARGER_API_BASE_URL
+WHEELCHAIR_CHARGER_API_ENDPOINT_PATH
+WHEELCHAIR_CHARGER_API_SERVICE_KEY
+FESTIVAL_API_BASE_URL
+FESTIVAL_API_SERVICE_KEY
+```
+
+선택 환경변수:
+
+```text
+TOUR_API_MOBILE_OS
+TOUR_API_MOBILE_APP
+TOUR_API_DEFAULT_NUM_OF_ROWS
+FESTIVAL_API_ENDPOINT_PATH
+FESTIVAL_API_DEFAULT_PER_PAGE
+FESTIVAL_API_FULL_SCAN_PAGE_SIZE
+FESTIVAL_API_FOCUSED_PER_PAGE
+API_TIMEOUT_MS
+PORT
+```
+
+필수 값은 서버 시작 시 검증되며, 누락되면 서버가 시작되지 않습니다. `PORT`는 HTTP 실행
+진입점에서만 사용하며 기본값은 `3000`입니다.
+
 ## 기대 효과
 
 이 프로젝트는 분산된 공공데이터를 사용자 목적에 맞게 결합하여 이동약자가 관광지 방문 전 다음 항목을 더 쉽게 판단할 수 있도록 돕습니다.

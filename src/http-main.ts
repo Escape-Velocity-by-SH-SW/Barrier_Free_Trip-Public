@@ -1,6 +1,5 @@
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { StreamableHTTPServerTransportOptions } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
-import { config } from "dotenv";
 import { createServer as createHttpServer } from "node:http";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
@@ -16,8 +15,6 @@ const requestTimeoutMs = 30_000;
 const headersTimeoutMs = 10_000;
 
 function main(): void {
-  config({ quiet: true });
-
   const container = createContainer();
   const port = getPort(process.env.PORT);
 
@@ -131,11 +128,7 @@ function getPort(value: string | undefined): number {
   return port;
 }
 
-function writeJsonResponse(
-  response: ServerResponse,
-  statusCode: number,
-  body: unknown,
-): void {
+function writeJsonResponse(response: ServerResponse, statusCode: number, body: unknown): void {
   response.writeHead(statusCode, { "content-type": "application/json" });
   response.end(JSON.stringify(body));
 }
@@ -143,6 +136,9 @@ function writeJsonResponse(
 try {
   main();
 } catch (error) {
-  console.error("[accessible-visit-mcp] fatal streamable http startup error", toLoggableError(error));
+  console.error(
+    "[accessible-visit-mcp] fatal streamable http startup error",
+    toLoggableError(error),
+  );
   process.exitCode = 1;
 }

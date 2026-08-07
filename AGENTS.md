@@ -70,6 +70,9 @@ createContainer()
 - `create-container.ts`: Service, Repository, Adapter, Client 의존성 조립 지점이다.
 - `register-tools.ts`: 모든 MCP Tool 등록 순서를 한 곳에서 관리한다.
 
+런타임 설정은 컨테이너에 주입된 `process.env`만 사용한다. 환경변수 파일을 읽거나
+`dotenv` 같은 로더를 추가하지 않는다.
+
 Bootstrap 레이어에는 비즈니스 로직, 외부 API 호출, Adapter 구현을 넣지 않는다.
 stdio 서버에서 stdout 로그는 MCP 메시지와 충돌할 수 있으므로 사용하지 않는다.
 시작 로그와 치명적 오류 로그는 `console.error()`만 사용한다.
