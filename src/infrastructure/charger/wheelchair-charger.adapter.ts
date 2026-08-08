@@ -9,22 +9,40 @@ import {
   type WheelChairChargerApiClient,
 } from "./wheelchair-charger-api.client.js";
 import { mapWheelchairChargerItems } from "./wheelchair-charger.mapper.js";
+import type { OperationContext } from "../../application/ports/operation-context.js";
+import { CachedLoader, type CachedLoaderOptions } from "../cache/cached-loader.js";
 
-export type WheelChairChargerClient = Pick<
-  WheelChairChargerApiClient,
-  "getWheelChairCharger"
->;
+export type WheelChairChargerClient = Pick<WheelChairChargerApiClient, "getWheelChairCharger">;
 
 export class WheelChairChargerAdapter implements WheelchairChargerRepository {
-  constructor(private readonly client: WheelChairChargerClient) {}
+  private readonly loader: CachedLoader<string, ChargerSourceData[]>;
 
-  async findByRegion(query: WheelchairChargerQuery): Promise<ChargerSourceData[]> {
+  constructor(
+    private readonly client: WheelChairChargerClient,
+    cacheOptions: CachedLoaderOptions,
+  ) {
+    this.loader = new CachedLoader("charger", cacheOptions);
+  }
+
+  async findByRegion(
+    query: WheelchairChargerQuery,
+    context?: OperationContext,
+  ): Promise<ChargerSourceData[]> {
+    const key = `${normalizeRegion(query.province)}|${normalizeRegion(query.cityCounty)}`;
+    return this.loader.load(key, context, () => this.fetchByRegion(query, context));
+  }
+
+  private async fetchByRegion(
+    query: WheelchairChargerQuery,
+    context: OperationContext | undefined,
+  ): Promise<ChargerSourceData[]> {
     try {
       const response = await this.client.getWheelChairCharger({
         ctprvnNm: query.province,
         signguNm: query.cityCounty,
         ...(query.pageNo !== undefined ? { pageNo: query.pageNo } : {}),
         ...(query.numOfRows !== undefined ? { numOfRows: query.numOfRows } : {}),
+        ...(context !== undefined ? { context } : {}),
       });
 
       return mapWheelchairChargerItems(response.items);
@@ -39,4 +57,8 @@ export class WheelChairChargerAdapter implements WheelchairChargerRepository {
       throw new WheelchairChargerRepositoryError({ cause: error });
     }
   }
+}
+
+function normalizeRegion(value: string): string {
+  return value.trim().replaceAll(/\s+/g, " ").toLocaleLowerCase("ko-KR");
 }

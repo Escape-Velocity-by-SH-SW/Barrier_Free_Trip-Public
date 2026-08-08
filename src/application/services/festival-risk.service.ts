@@ -8,6 +8,7 @@ import type {
 } from "../../domain/festival.js";
 import { calculateDistanceKm } from "../../domain/geo.js";
 import { toLoggableError } from "./logging.js";
+import type { OperationContext } from "../ports/operation-context.js";
 
 const defaultRadiusKm = 3;
 const highRiskDistanceKm = 1;
@@ -18,6 +19,7 @@ export interface FestivalRiskAssessmentRequest {
   destination: Destination;
   visitDate: string;
   radiusKm?: number;
+  context?: OperationContext;
 }
 
 export class FestivalRiskService {
@@ -27,15 +29,18 @@ export class FestivalRiskService {
     const radiusKm = request.radiusKm ?? defaultRadiusKm;
 
     try {
-      const festivals = await this.repository.findNearby({
-        destinationName: request.destination.name,
-        ...(request.destination.address !== undefined
-          ? { address: request.destination.address }
-          : {}),
-        coordinates: request.destination.coordinates,
-        visitDate: request.visitDate,
-        radiusKm,
-      });
+      const festivals = await this.repository.findNearby(
+        {
+          destinationName: request.destination.name,
+          ...(request.destination.address !== undefined
+            ? { address: request.destination.address }
+            : {}),
+          coordinates: request.destination.coordinates,
+          visitDate: request.visitDate,
+          radiusKm,
+        },
+        request.context,
+      );
 
       return createResult(request.destination, request.visitDate, radiusKm, festivals);
     } catch (error) {

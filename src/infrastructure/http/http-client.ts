@@ -1,5 +1,9 @@
 import { HttpRequestError, getHttpErrorKind } from "./http-error.js";
 import { buildUrl, type HttpQueryParams } from "./url.js";
+import type {
+  DownstreamSource,
+  OperationContext,
+} from "../../application/ports/operation-context.js";
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -11,6 +15,10 @@ export interface HttpClientOptions {
   baseUrl: string;
   defaultHeaders?: RequestInit["headers"];
   defaultTimeoutMs?: number;
+  maxRetries?: number;
+  retryBaseDelayMs?: number;
+  retryMaxDelayMs?: number;
+  source?: DownstreamSource;
   fetchFn?: typeof fetch;
 }
 
@@ -22,14 +30,22 @@ export interface HttpRequestOptions {
   body?: RequestInit["body"];
   timeoutMs?: number;
   signal?: AbortSignal;
+  context?: OperationContext;
+  source?: DownstreamSource;
 }
 
 const defaultTimeoutMs = 10_000;
+const defaultRetryBaseDelayMs = 40;
+const defaultRetryMaxDelayMs = 200;
 
 export class FetchHttpClient implements HttpClient {
   private readonly baseUrl: string;
   private readonly defaultHeaders: RequestInit["headers"] | undefined;
   private readonly defaultTimeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly retryBaseDelayMs: number;
+  private readonly retryMaxDelayMs: number;
+  private readonly source: DownstreamSource | undefined;
   private readonly fetchFn: typeof fetch;
 
   /** 클라이언트를 초기화한다 (기본 URL, 기본 헤더, 기본 타임아웃, fetch 구현체 설정). */
@@ -37,6 +53,10 @@ export class FetchHttpClient implements HttpClient {
     this.baseUrl = options.baseUrl;
     this.defaultHeaders = options.defaultHeaders;
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? defaultTimeoutMs;
+    this.maxRetries = options.maxRetries ?? 0;
+    this.retryBaseDelayMs = options.retryBaseDelayMs ?? defaultRetryBaseDelayMs;
+    this.retryMaxDelayMs = options.retryMaxDelayMs ?? defaultRetryMaxDelayMs;
+    this.source = options.source;
     this.fetchFn = options.fetchFn ?? fetch;
   }
 
@@ -62,9 +82,31 @@ export class FetchHttpClient implements HttpClient {
 
   /** URL을 구성하고 타임아웃/abort를 연결한 뒤 실제 fetch를 실행하며, 실패 시 HttpRequestError로 정규화한다. */
   private async request(options: HttpRequestOptions): Promise<Response> {
+    let attempt = 0;
+
+    while (true) {
+      try {
+        return await this.requestOnce(options);
+      } catch (error) {
+        const retryDelayMs = this.getRetryDelayMs(error, attempt + 1);
+        if (!this.shouldRetry(error, attempt, retryDelayMs, options)) {
+          throw error;
+        }
+
+        attempt += 1;
+        this.recordRetry(options);
+        await waitForRetry(retryDelayMs, options.context?.signal);
+      }
+    }
+  }
+
+  private async requestOnce(options: HttpRequestOptions): Promise<Response> {
     const url = buildUrl(this.baseUrl, options.path, options.query);
     const abortController = new AbortController();
-    const timeoutMs = options.timeoutMs ?? this.defaultTimeoutMs;
+    const configuredTimeoutMs = options.timeoutMs ?? this.defaultTimeoutMs;
+    const remainingMs = getRemainingMs(options.context);
+    const timeoutMs = Math.max(1, Math.min(configuredTimeoutMs, remainingMs));
+    const startedAt = performance.now();
     let timedOut = false;
     const timeoutId = setTimeout(() => {
       if (abortController.signal.aborted) {
@@ -74,7 +116,8 @@ export class FetchHttpClient implements HttpClient {
       timedOut = true;
       abortController.abort();
     }, timeoutMs);
-    const removeAbortListener = this.forwardAbortSignal(options.signal, abortController);
+    const callerSignal = options.context?.signal ?? options.signal;
+    const removeAbortListener = this.forwardAbortSignal(callerSignal, abortController);
 
     try {
       const requestInit: RequestInit = {
@@ -91,12 +134,87 @@ export class FetchHttpClient implements HttpClient {
         throw this.createStatusError(response);
       }
 
+      this.recordDownstream(options, startedAt, "success");
       return response;
     } catch (error) {
-      throw this.normalizeRequestError(error, timedOut);
+      const normalizedError = this.normalizeRequestError(error, timedOut);
+      this.recordDownstream(
+        options,
+        startedAt,
+        normalizedError instanceof HttpRequestError && normalizedError.kind === "TIMEOUT"
+          ? "timeout"
+          : "failure",
+      );
+      throw normalizedError;
     } finally {
       clearTimeout(timeoutId);
       removeAbortListener();
+    }
+  }
+
+  private shouldRetry(
+    error: unknown,
+    attempt: number,
+    retryDelayMs: number,
+    options: HttpRequestOptions,
+  ): boolean {
+    if (attempt >= this.maxRetries || options.context?.signal?.aborted === true) {
+      return false;
+    }
+
+    if (!(error instanceof HttpRequestError)) {
+      return false;
+    }
+
+    if (
+      error.retryAfterSeconds !== undefined &&
+      error.retryAfterSeconds * 1_000 > this.retryMaxDelayMs
+    ) {
+      return false;
+    }
+
+    if (getRemainingMs(options.context) <= retryDelayMs + 50) {
+      return false;
+    }
+
+    if (error.kind === "NETWORK_ERROR" || error.kind === "TIMEOUT") {
+      return true;
+    }
+
+    return (
+      error.status === 429 || error.status === 502 || error.status === 503 || error.status === 504
+    );
+  }
+
+  private getRetryDelayMs(error: unknown, attempt: number): number {
+    if (error instanceof HttpRequestError && error.retryAfterSeconds !== undefined) {
+      return Math.min(error.retryAfterSeconds * 1_000, this.retryMaxDelayMs);
+    }
+
+    const exponentialDelay = this.retryBaseDelayMs * 2 ** (attempt - 1);
+    const jitter = Math.floor(Math.random() * this.retryBaseDelayMs);
+    return Math.min(exponentialDelay + jitter, this.retryMaxDelayMs);
+  }
+
+  private recordRetry(options: HttpRequestOptions): void {
+    const source = options.source ?? this.source;
+    if (source !== undefined) {
+      options.context?.telemetry?.recordRetry(source);
+    }
+  }
+
+  private recordDownstream(
+    options: HttpRequestOptions,
+    startedAt: number,
+    outcome: "success" | "failure" | "timeout",
+  ): void {
+    const source = options.source ?? this.source;
+    if (source !== undefined) {
+      options.context?.telemetry?.recordDownstreamCall(
+        source,
+        Math.round(performance.now() - startedAt),
+        outcome,
+      );
     }
   }
 
@@ -165,6 +283,32 @@ export class FetchHttpClient implements HttpClient {
       cause: error,
     });
   }
+}
+
+function getRemainingMs(context: OperationContext | undefined): number {
+  return context?.deadlineAtMs !== undefined
+    ? Math.max(0, context.deadlineAtMs - Date.now())
+    : Number.POSITIVE_INFINITY;
+}
+
+async function waitForRetry(delayMs: number, signal: AbortSignal | undefined): Promise<void> {
+  if (signal?.aborted === true) {
+    throw new HttpRequestError({ kind: "NETWORK_ERROR", message: "HTTP retry was cancelled." });
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const complete = (): void => {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    };
+    const timeoutId = setTimeout(complete, delayMs);
+    const abort = (): void => {
+      clearTimeout(timeoutId);
+      signal?.removeEventListener("abort", abort);
+      reject(new HttpRequestError({ kind: "NETWORK_ERROR", message: "HTTP retry was cancelled." }));
+    };
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 }
 
 /** Retry-After 헤더 값(초 단위 delta 또는 HTTP-date)을 파싱해 대기해야 할 초 단위 값으로 변환한다. */

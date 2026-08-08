@@ -7,11 +7,13 @@ import type {
   WeatherRiskAssessment,
   WeatherRiskType,
 } from "../../domain/weather.js";
+import type { OperationContext } from "../ports/operation-context.js";
 
 export interface GetDestinationWeatherRequest {
   destination: Destination;
   visitDate: string;
   travelerType?: TravelerType;
+  context?: OperationContext;
 }
 
 interface CreateWeatherResultInput extends GetDestinationWeatherRequest {
@@ -44,10 +46,13 @@ export class WeatherService {
     }
 
     try {
-      const sourceData = await this.weatherRepository.getForecast({
-        coordinates: request.destination.coordinates,
-        visitDate: request.visitDate,
-      });
+      const sourceData = await this.weatherRepository.getForecast(
+        {
+          coordinates: request.destination.coordinates,
+          visitDate: request.visitDate,
+        },
+        request.context,
+      );
 
       if (sourceData.forecasts.length === 0) {
         return createWeatherResult({

@@ -7,6 +7,9 @@ import type {
 import type { DailyWeatherForecast, WeatherRiskAssessment } from "../../domain/weather.js";
 import type { DestinationResolver } from "./destination-resolver.js";
 import type { WeatherService } from "./weather.service.js";
+import type { OperationContext } from "../ports/operation-context.js";
+import { performanceConfig } from "./performance-config.js";
+import { runWithDeadline } from "./deadline.js";
 
 export interface DestinationWeatherToolRequest {
   destination: string;
@@ -48,7 +51,16 @@ export class DestinationWeatherToolService {
   ) {}
 
   async execute(request: DestinationWeatherToolRequest): Promise<DestinationWeatherToolResult> {
-    const resolution = await this.destinationResolver.resolve(request.destination);
+    return runWithDeadline(performanceConfig.overallDeadlineMs, (context) =>
+      this.executeWithinDeadline(request, context),
+    );
+  }
+
+  private async executeWithinDeadline(
+    request: DestinationWeatherToolRequest,
+    context: OperationContext,
+  ): Promise<DestinationWeatherToolResult> {
+    const resolution = await this.destinationResolver.resolve(request.destination, context);
 
     if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
       return createResolutionFailureResult(resolution, request);
@@ -58,6 +70,7 @@ export class DestinationWeatherToolService {
       destination: resolution.destination,
       visitDate: request.visitDate,
       ...(request.travelerType !== undefined ? { travelerType: request.travelerType } : {}),
+      context,
     });
 
     return {

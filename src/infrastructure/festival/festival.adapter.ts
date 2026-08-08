@@ -5,69 +5,53 @@ import type { FestivalSourceData } from "../../domain/festival.js";
 import { calculateDistanceKm } from "../../domain/geo.js";
 import type { FestivalApiClient } from "./festival-api.client.js";
 import { mapFestivalResponseToSourceData } from "./festival.mapper.js";
+import type { OperationContext } from "../../application/ports/operation-context.js";
+import { CachedLoader, type CachedLoaderOptions } from "../cache/cached-loader.js";
+
+export type FestivalClient = Pick<FestivalApiClient, "getAllFestivals">;
 
 export class FestivalAdapter implements FestivalRepository {
-  constructor(private readonly client: FestivalApiClient) {}
+  private readonly datasetLoader: CachedLoader<"nationwide", FestivalSourceData[]>;
+  private readonly dateIndexLoader: CachedLoader<string, FestivalSourceData[]>;
 
-  async findNearby(query: FestivalQuery): Promise<FestivalSourceData[]> {
-    const fastPathFestivals = await this.findNearbyFromFocusedQueries(query);
-
-    if (fastPathFestivals.length > 0) {
-      return fastPathFestivals;
-    }
-
-    const festivals = await this.getMappedFestivals();
-    return filterNearbyFestivals(festivals, query, "broad");
+  constructor(
+    private readonly client: FestivalClient,
+    cacheOptions: {
+      readonly dataset: CachedLoaderOptions;
+      readonly dateIndex: CachedLoaderOptions;
+    },
+  ) {
+    this.datasetLoader = new CachedLoader("festival", cacheOptions.dataset);
+    this.dateIndexLoader = new CachedLoader("festival", cacheOptions.dateIndex);
   }
 
-  private async findNearbyFromFocusedQueries(query: FestivalQuery): Promise<FestivalSourceData[]> {
-    const requests = createFocusedFestivalRequests(query);
-
-    if (requests.length === 0) {
-      return [];
-    }
-
-    const responses = await Promise.all(
-      requests.map((request) =>
-        this.client.getFestivals({
-          ...request,
-          perPage: this.client.focusedPerPage,
-        }),
-      ),
-    );
-    const festivals = responses.flatMap(mapFestivalResponseToSourceData);
-
-    return filterNearbyFestivals(festivals, query, "focused");
+  async findNearby(
+    query: FestivalQuery,
+    context?: OperationContext,
+  ): Promise<FestivalSourceData[]> {
+    const activeFestivals = await this.dateIndexLoader.load(query.visitDate, context, async () => {
+      const festivals = await this.getMappedFestivals(context);
+      return festivals.filter((festival) => isActiveOnVisitDate(festival, query.visitDate));
+    });
+    return filterNearbyFestivals(activeFestivals, query);
   }
 
-  private async getMappedFestivals(): Promise<FestivalSourceData[]> {
-    const response = await this.client.getAllFestivals();
-    return mapFestivalResponseToSourceData(response);
+  private getMappedFestivals(context?: OperationContext): Promise<FestivalSourceData[]> {
+    return this.datasetLoader.load("nationwide", context, async () => {
+      const response = await this.client.getAllFestivals(context);
+      return mapFestivalResponseToSourceData(response);
+    });
   }
 }
 
 function filterNearbyFestivals(
   festivals: FestivalSourceData[],
   query: FestivalQuery,
-  lookupMode: "focused" | "broad",
 ): FestivalSourceData[] {
-  const activeFestivals = festivals.filter((festival) =>
-    isActiveOnVisitDate(festival, query.visitDate),
-  );
-  const festivalsWithDistance = activeFestivals.map((festival) => ({
+  const festivalsWithDistance = festivals.map((festival) => ({
     festival,
     distanceKm: getDistanceKm(festival, query.coordinates),
   }));
-
-  if (lookupMode === "focused") {
-    return uniqueFestivalsByEventKey(
-      festivalsWithDistance
-        .filter(
-          ({ festival, distanceKm }) => !hasCoordinates(festival) || distanceKm <= query.radiusKm,
-        )
-        .sort((left, right) => left.distanceKm - right.distanceKm),
-    ).map(({ festival }) => festival);
-  }
 
   const festivalsWithCoordinates = festivalsWithDistance.filter(({ festival }) =>
     hasCoordinates(festival),
@@ -80,16 +64,6 @@ function filterNearbyFestivals(
   );
 
   return nearbyFestivals;
-}
-
-function createFocusedFestivalRequests(query: FestivalQuery): Array<{
-  venue?: string;
-  roadAddress?: string;
-}> {
-  return [
-    ...(query.destinationName !== undefined ? [{ venue: query.destinationName }] : []),
-    ...(query.address !== undefined ? [{ roadAddress: query.address }] : []),
-  ];
 }
 
 function isActiveOnVisitDate(festival: FestivalSourceData, visitDate: string): boolean {

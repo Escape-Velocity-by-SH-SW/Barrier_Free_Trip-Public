@@ -17,8 +17,9 @@ import { KoreaTourAccessibilityAdapter } from "../infrastructure/tourism/korea-t
 import { KoreaTourApiClient } from "../infrastructure/tourism/korea-tour-api.client.js";
 import { KmaWeatherApiClient } from "../infrastructure/weather/kma-weather-api.client.js";
 import { KmaWeatherAdapter } from "../infrastructure/weather/kma-weather.adapter.js";
+import type { DownstreamSource } from "../application/ports/operation-context.js";
+import { performanceConfig } from "../application/services/performance-config.js";
 
-const API_TIMEOUT_MS = 3_000;
 const WHEELCHAIR_CHARGER_API_ENDPOINT_PATH = "/tn_pubr_public_electr_whlchairhgh_spdchrgr_api";
 const KMA_WEATHER_API_ENDPOINT_PATH = "/getVilageFcst";
 const TOUR_API_MOBILE_OS = "ETC";
@@ -61,6 +62,10 @@ export function createContainer(env: NodeJS.ProcessEnv = process.env): AppContai
         weatherService,
         chargerService,
         festivalRiskService,
+        {
+          overallDeadlineMs: performanceConfig.overallDeadlineMs,
+          destinationConcurrency: performanceConfig.destinationConcurrency,
+        },
       ),
       destinationWeatherToolService: new DestinationWeatherToolService(
         tourismServices.destinationResolver,
@@ -88,7 +93,7 @@ function createTourismServices(env: NodeJS.ProcessEnv): {
 } {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "TOUR_API_BASE_URL"),
-    timeoutMs: API_TIMEOUT_MS,
+    source: "tourism",
   });
   const apiClient = new KoreaTourApiClient(httpClient, {
     serviceKey: getRequiredEnv(env, "TOUR_API_SERVICE_KEY"),
@@ -96,7 +101,10 @@ function createTourismServices(env: NodeJS.ProcessEnv): {
     mobileApp: TOUR_API_MOBILE_APP,
     defaultNumOfRows: TOUR_API_DEFAULT_NUM_OF_ROWS,
   });
-  const repository = new KoreaTourAccessibilityAdapter(apiClient);
+  const repository = new KoreaTourAccessibilityAdapter(apiClient, {
+    destination: performanceConfig.cache.destination,
+    accessibility: performanceConfig.cache.accessibility,
+  });
 
   return {
     destinationResolver: new DestinationResolver(repository),
@@ -107,13 +115,13 @@ function createTourismServices(env: NodeJS.ProcessEnv): {
 function createChargerService(env: NodeJS.ProcessEnv): ChargerService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_BASE_URL"),
-    timeoutMs: API_TIMEOUT_MS,
+    source: "charger",
   });
   const apiClient = new WheelChairChargerApiClient(httpClient, {
     endpointUrl: WHEELCHAIR_CHARGER_API_ENDPOINT_PATH,
     serviceKey: getRequiredEnv(env, "WHEELCHAIR_CHARGER_API_SERVICE_KEY"),
   });
-  const repository = new WheelChairChargerAdapter(apiClient);
+  const repository = new WheelChairChargerAdapter(apiClient, performanceConfig.cache.chargerRegion);
 
   return new ChargerService(repository);
 }
@@ -121,13 +129,13 @@ function createChargerService(env: NodeJS.ProcessEnv): ChargerService {
 function createWeatherService(env: NodeJS.ProcessEnv): WeatherService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "KMA_WEATHER_API_BASE_URL"),
-    timeoutMs: API_TIMEOUT_MS,
+    source: "weather",
   });
   const apiClient = new KmaWeatherApiClient(httpClient, {
     endpointUrl: KMA_WEATHER_API_ENDPOINT_PATH,
     serviceKey: getRequiredEnv(env, "KMA_WEATHER_API_SERVICE_KEY"),
   });
-  const repository = new KmaWeatherAdapter(apiClient);
+  const repository = new KmaWeatherAdapter(apiClient, performanceConfig.cache.weather);
 
   return new WeatherService(repository);
 }
@@ -135,7 +143,7 @@ function createWeatherService(env: NodeJS.ProcessEnv): WeatherService {
 function createFestivalRiskService(env: NodeJS.ProcessEnv): FestivalRiskService {
   const httpClient = createHttpClient({
     baseUrl: getRequiredEnv(env, "FESTIVAL_API_BASE_URL"),
-    timeoutMs: API_TIMEOUT_MS,
+    source: "festival",
   });
   const apiClient = new FestivalApiClient(httpClient, {
     path: FESTIVAL_API_ENDPOINT_PATH,
@@ -145,12 +153,11 @@ function createFestivalRiskService(env: NodeJS.ProcessEnv): FestivalRiskService 
       "fullScanPageSize",
       getOptionalPositiveIntegerEnv(env, "FESTIVAL_API_FULL_SCAN_PAGE_SIZE"),
     ),
-    ...optionalNumberProperty(
-      "focusedPerPage",
-      getOptionalPositiveIntegerEnv(env, "FESTIVAL_API_FOCUSED_PER_PAGE"),
-    ),
   });
-  const repository = new FestivalAdapter(apiClient);
+  const repository = new FestivalAdapter(apiClient, {
+    dataset: performanceConfig.cache.festivalDataset,
+    dateIndex: performanceConfig.cache.festivalDateIndex,
+  });
 
   return new FestivalRiskService(repository);
 }
@@ -195,10 +202,14 @@ function optionalNumberProperty<TKey extends string>(
 
 function createHttpClient(options: {
   readonly baseUrl: string;
-  readonly timeoutMs?: number;
+  readonly source: DownstreamSource;
 }): FetchHttpClient {
   return new FetchHttpClient({
     baseUrl: options.baseUrl,
-    ...(options.timeoutMs !== undefined ? { defaultTimeoutMs: options.timeoutMs } : {}),
+    source: options.source,
+    defaultTimeoutMs: performanceConfig.externalApiTimeoutMs,
+    maxRetries: performanceConfig.retryCount,
+    retryBaseDelayMs: performanceConfig.retryBaseDelayMs,
+    retryMaxDelayMs: performanceConfig.retryMaxDelayMs,
   });
 }

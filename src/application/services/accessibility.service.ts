@@ -8,16 +8,19 @@ import type {
 } from "../../domain/accessibility.js";
 import type { Destination } from "../../domain/destination.js";
 import { touristAttractionContentTypeId } from "../../domain/destination.js";
+import type { OperationContext } from "../ports/operation-context.js";
 
 export interface AccessibilityServiceRequest {
   destination: Destination;
   travelerType?: TravelerType;
+  context?: OperationContext;
 }
 
 export interface AccessibilityByContentIdRequest {
   contentId: string;
   contentTypeId?: string;
   travelerType?: TravelerType;
+  context?: OperationContext;
 }
 
 export interface AccessibilityLookupResult {
@@ -61,6 +64,7 @@ export class AccessibilityService {
       const sourceData = await this.repository.getAccessibility(
         request.destination.contentId,
         request.destination.contentTypeId,
+        request.context,
       );
       return {
         ...createLookupResult(sourceData, request.travelerType),
@@ -88,6 +92,7 @@ export class AccessibilityService {
       const sourceData = await this.repository.getAccessibility(
         request.contentId,
         request.contentTypeId ?? touristAttractionContentTypeId,
+        request.context,
       );
 
       return createLookupResult(sourceData, request.travelerType);

@@ -6,6 +6,9 @@ import type {
   DestinationResolutionResult,
 } from "../../domain/destination.js";
 import type { FestivalRiskLevel, NearbyFestival } from "../../domain/festival.js";
+import type { OperationContext } from "../ports/operation-context.js";
+import { performanceConfig } from "./performance-config.js";
+import { runWithDeadline } from "./deadline.js";
 
 export interface DestinationEventRiskToolRequest {
   destination?: string | undefined;
@@ -50,6 +53,15 @@ export class DestinationEventRiskToolService {
   ) {}
 
   async execute(request: DestinationEventRiskToolRequest): Promise<DestinationEventRiskToolResult> {
+    return runWithDeadline(performanceConfig.overallDeadlineMs, (context) =>
+      this.executeWithinDeadline(request, context),
+    );
+  }
+
+  private async executeWithinDeadline(
+    request: DestinationEventRiskToolRequest,
+    context: OperationContext,
+  ): Promise<DestinationEventRiskToolResult> {
     const contentId = normalizeText(request.contentId);
     const destinationName = getDestinationName(request);
 
@@ -62,11 +74,14 @@ export class DestinationEventRiskToolService {
         );
       }
 
-      const resolution = await this.destinationResolver.resolveByContentId({
-        contentId,
-        destinationName,
-      });
-      return this.executeResolvedDestination(resolution, request, "contentId");
+      const resolution = await this.destinationResolver.resolveByContentId(
+        {
+          contentId,
+          destinationName,
+        },
+        context,
+      );
+      return this.executeResolvedDestination(resolution, request, "contentId", context);
     }
 
     if (destinationName === undefined) {
@@ -77,14 +92,15 @@ export class DestinationEventRiskToolService {
       );
     }
 
-    const resolution = await this.destinationResolver.resolve(destinationName);
-    return this.executeResolvedDestination(resolution, request, "name");
+    const resolution = await this.destinationResolver.resolve(destinationName, context);
+    return this.executeResolvedDestination(resolution, request, "name", context);
   }
 
   private async executeResolvedDestination(
     resolution: DestinationResolutionResult,
     request: DestinationEventRiskToolRequest,
     mode: "name" | "contentId",
+    context: OperationContext,
   ): Promise<DestinationEventRiskToolResult> {
     if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
       return createResolutionFailureResult(resolution, request);
@@ -94,6 +110,7 @@ export class DestinationEventRiskToolService {
       destination: resolution.destination,
       visitDate: request.visitDate,
       radiusKm: request.radiusKm,
+      context,
     });
 
     return {

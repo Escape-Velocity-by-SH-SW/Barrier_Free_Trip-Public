@@ -65,9 +65,7 @@ describe("FetchHttpClient", () => {
     const fetchFn = vi.fn<typeof fetch>().mockRejectedValue(new Error("connection failed"));
     const client = new FetchHttpClient({ baseUrl: "https://example.test", fetchFn });
 
-    await expect(client.requestJson({ path: "/weather" })).rejects.toBeInstanceOf(
-      HttpRequestError,
-    );
+    await expect(client.requestJson({ path: "/weather" })).rejects.toBeInstanceOf(HttpRequestError);
     await expect(client.requestJson({ path: "/weather" })).rejects.toMatchObject({
       kind: "NETWORK_ERROR",
     });
@@ -110,5 +108,67 @@ describe("FetchHttpClient", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("retries one transient 503 response", async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const client = new FetchHttpClient({
+      baseUrl: "https://example.test",
+      fetchFn,
+      maxRetries: 1,
+      retryBaseDelayMs: 1,
+      retryMaxDelayMs: 1,
+    });
+
+    await expect(client.requestJson({ path: "/weather" })).resolves.toEqual({ ok: true });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a non-transient 400 response", async () => {
+    const fetchFn = vi.fn<typeof fetch>().mockResolvedValue(new Response("bad", { status: 400 }));
+    const client = new FetchHttpClient({
+      baseUrl: "https://example.test",
+      fetchFn,
+      maxRetries: 1,
+    });
+
+    await expect(client.requestJson({ path: "/weather" })).rejects.toMatchObject({ status: 400 });
+    expect(fetchFn).toHaveBeenCalledOnce();
+  });
+
+  it("does not start a retry when the overall signal is already aborted", async () => {
+    const controller = new AbortController();
+    const fetchFn = vi.fn<typeof fetch>().mockImplementation(() => {
+      controller.abort();
+      return Promise.resolve(new Response("unavailable", { status: 503 }));
+    });
+    const client = new FetchHttpClient({
+      baseUrl: "https://example.test",
+      fetchFn,
+      maxRetries: 1,
+    });
+
+    await expect(
+      client.requestJson({ path: "/weather", context: { signal: controller.signal } }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(fetchFn).toHaveBeenCalledOnce();
+  });
+
+  it("does not ignore a Retry-After value longer than the bounded retry budget", async () => {
+    const fetchFn = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response("busy", { status: 429, headers: { "retry-after": "10" } }));
+    const client = new FetchHttpClient({
+      baseUrl: "https://example.test",
+      fetchFn,
+      maxRetries: 1,
+      retryMaxDelayMs: 200,
+    });
+
+    await expect(client.requestJson({ path: "/weather" })).rejects.toMatchObject({ status: 429 });
+    expect(fetchFn).toHaveBeenCalledOnce();
   });
 });
