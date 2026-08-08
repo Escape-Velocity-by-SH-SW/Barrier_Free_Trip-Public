@@ -17,6 +17,7 @@ export interface DestinationAccessibilityToolRequest {
   contentId?: string | undefined;
   contentTypeId?: string | undefined;
   travelerType?: string | undefined;
+  context?: OperationContext;
 }
 
 export interface DestinationCandidateSummary {
@@ -55,8 +56,10 @@ export class DestinationAccessibilityToolService {
   async execute(
     request: DestinationAccessibilityToolRequest,
   ): Promise<DestinationAccessibilityToolResult> {
-    return runWithDeadline(performanceConfig.overallDeadlineMs, (context) =>
-      this.executeWithinDeadline(request, context),
+    return runWithDeadline(
+      performanceConfig.overallDeadlineMs,
+      (context) => this.executeWithinDeadline(request, context),
+      request.context,
     );
   }
 

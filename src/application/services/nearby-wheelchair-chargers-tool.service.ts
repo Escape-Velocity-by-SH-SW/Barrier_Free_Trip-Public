@@ -12,6 +12,7 @@ import { runWithDeadline } from "./deadline.js";
 
 export interface NearbyWheelchairChargersToolRequest {
   destination: string;
+  context?: OperationContext;
 }
 
 export interface DestinationCandidateSummary {
@@ -48,8 +49,10 @@ export class NearbyWheelchairChargersToolService {
   async execute(
     request: NearbyWheelchairChargersToolRequest,
   ): Promise<NearbyWheelchairChargersToolResult> {
-    return runWithDeadline(performanceConfig.overallDeadlineMs, (context) =>
-      this.executeWithinDeadline(request, context),
+    return runWithDeadline(
+      performanceConfig.overallDeadlineMs,
+      (context) => this.executeWithinDeadline(request, context),
+      request.context,
     );
   }
 

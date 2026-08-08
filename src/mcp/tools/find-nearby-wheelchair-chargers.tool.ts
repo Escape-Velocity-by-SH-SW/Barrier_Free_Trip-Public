@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 import type { AppContainer } from "../../bootstrap/create-container.js";
 import { createToolResult } from "./tool-result.js";
+import { createToolObservation } from "../../application/services/tool-observation.js";
 
 const destinationSchema = z.object({
   name: z.string(),
@@ -34,18 +35,20 @@ export const findNearbyWheelchairChargersOutputSchema = {
   status: z.enum(["SUCCESS", "NO_DATA", "FAILED", "NOT_APPLICABLE", "AMBIGUOUS_DESTINATION"]),
   message: z.string().optional(),
   destination: destinationSchema.optional(),
-  chargers: z.array(
-    z.object({
-      name: z.string(),
-      address: z.string().optional(),
-      installationLocationDescription: z.string().optional(),
-      distanceKm: z.number().nonnegative(),
-      managingOrganization: z.string().optional(),
-      phoneNumber: z.string().optional(),
-      referenceDate: z.string().optional(),
-      realtimeAvailability: z.literal("UNKNOWN"),
-    }),
-  ).optional(),
+  chargers: z
+    .array(
+      z.object({
+        name: z.string(),
+        address: z.string().optional(),
+        installationLocationDescription: z.string().optional(),
+        distanceKm: z.number().nonnegative(),
+        managingOrganization: z.string().optional(),
+        phoneNumber: z.string().optional(),
+        referenceDate: z.string().optional(),
+        realtimeAvailability: z.literal("UNKNOWN"),
+      }),
+    )
+    .optional(),
   cautions: z.array(z.string()),
   candidates: z.array(candidateSchema).optional(),
 };
@@ -71,25 +74,35 @@ export function registerFindNearbyWheelchairChargersTool(
       },
     },
     async (input) => {
-      const result = await container.services.nearbyWheelchairChargersToolService.execute(input);
+      const observation = createToolObservation("find_nearby_wheelchair_chargers");
+      try {
+        const result = await container.services.nearbyWheelchairChargersToolService.execute({
+          ...input,
+          context: observation.context,
+        });
+        observation.summary({ status: result.status });
 
-      if (result.status === "AMBIGUOUS_DESTINATION") {
-        return createToolResult(result);
+        if (result.status === "AMBIGUOUS_DESTINATION") {
+          return createToolResult(result);
+        }
+
+        if (result.status === "FAILED") {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text",
+                text: result.errorMessage,
+              },
+            ],
+          };
+        }
+
+        return createToolResult(result.result);
+      } catch (error) {
+        observation.error(error);
+        throw error;
       }
-
-      if (result.status === "FAILED") {
-        return {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: result.errorMessage,
-            },
-          ],
-        };
-      }
-
-      return createToolResult(result.result);
     },
   );
 }

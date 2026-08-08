@@ -292,6 +292,34 @@ npm run start:local
 Node 24의 `--env-file=.env`가 `.env`를 `process.env`로 전달합니다. 운영 실행은 계속
 `npm run start:http`입니다.
 
+### 로컬에서 요청 흐름 확인하기
+
+다음 명령은 빌드 후 HTTP 서버를 실행하고, stderr 로그를 터미널과
+`logs/mcp.ndjson`에 함께 남깁니다. 애플리케이션 자체는 파일을 열지 않습니다.
+
+```bash
+npm run dev:observe
+```
+
+다른 터미널에서는 필요한 형태로 로그를 볼 수 있습니다.
+
+```bash
+npm run logs                         # 최근 Tool 실행 요약
+npm run logs -- tail                 # 새 로그 실시간 확인
+npm run logs -- errors               # 오류, 재시도, timeout, 부분 결과
+npm run logs -- weather              # 날씨 source만 확인
+npm run logs -- festival             # 축제 source만 확인
+npm run logs -- charger              # 충전소 source만 확인
+npm run logs -- tourism              # 관광 source만 확인
+npm run logs -- request <requestId>  # 요청 하나의 전체 흐름
+npm run logs -- clear                # 로컬 로그 비우기
+npm run logs -- help                 # 명령 도움말
+```
+
+각 Tool 호출은 하나의 `requestId`를 사용합니다. `tool.start`부터 cache, 외부 API,
+retry, deadline, `tool.summary`까지 같은 ID로 연결되므로 특정 요청만 쉽게 추적할 수 있습니다.
+로그에는 API key, 전체 URL/query, 원본 API 응답, 사용자 입력 전체를 넣지 않습니다.
+
 운영 환경과 유사한 로컬 Docker 실행:
 
 ```bash

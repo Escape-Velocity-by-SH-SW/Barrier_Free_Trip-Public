@@ -16,6 +16,7 @@ export interface DestinationEventRiskToolRequest {
   contentId?: string | undefined;
   visitDate: string;
   radiusKm: number;
+  context?: OperationContext;
 }
 
 export interface DestinationCandidateSummary {
@@ -53,8 +54,10 @@ export class DestinationEventRiskToolService {
   ) {}
 
   async execute(request: DestinationEventRiskToolRequest): Promise<DestinationEventRiskToolResult> {
-    return runWithDeadline(performanceConfig.overallDeadlineMs, (context) =>
-      this.executeWithinDeadline(request, context),
+    return runWithDeadline(
+      performanceConfig.overallDeadlineMs,
+      (context) => this.executeWithinDeadline(request, context),
+      request.context,
     );
   }
 

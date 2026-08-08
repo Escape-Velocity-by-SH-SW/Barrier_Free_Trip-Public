@@ -23,8 +23,9 @@ import type {
 } from "../../domain/visit-assessment.js";
 import type { DestinationWeatherResult } from "../../domain/weather.js";
 import type { OperationContext } from "../ports/operation-context.js";
-import { InMemoryRequestTelemetry } from "./request-telemetry.js";
 import { mapWithConcurrency } from "./concurrency.js";
+import { runWithDeadline } from "./deadline.js";
+import { ensureObservedContext, writeToolSummary } from "./tool-observation.js";
 
 export interface VisitAssessmentRequest {
   destination: string;
@@ -32,6 +33,7 @@ export interface VisitAssessmentRequest {
   visitDate: string;
   travelerType: TravelerType;
   radiusKm?: number;
+  context?: OperationContext;
 }
 
 export interface VisitAssessmentBatchRequest {
@@ -39,6 +41,7 @@ export interface VisitAssessmentBatchRequest {
   visitDate: string;
   travelerType: TravelerType;
   radiusKm?: number;
+  context?: OperationContext;
 }
 
 export interface VisitAssessmentBatchItem {
@@ -95,47 +98,51 @@ export class VisitAssessmentService {
   ) {}
 
   async assess(request: VisitAssessmentRequest): Promise<AccessibleVisitAssessment> {
-    const telemetry = new InMemoryRequestTelemetry();
+    const observedContext = ensureObservedContext("assess_accessible_visit", request.context);
     const startedAt = performance.now();
     let resolutionLatencyMs = 0;
 
     try {
-      return await this.withDeadline(async (context) => {
-        const resolutionStartedAt = performance.now();
-        const resolution =
-          request.contentId !== undefined
-            ? await this.destinationResolver.resolveByContentId(
-                {
-                  contentId: request.contentId,
-                  destinationName: request.destination,
-                },
-                context,
-              )
-            : await this.destinationResolver.resolve(request.destination, context);
-        resolutionLatencyMs = Math.round(performance.now() - resolutionStartedAt);
+      return await runWithDeadline(
+        this.performanceOptions.overallDeadlineMs,
+        async (context) => {
+          const resolutionStartedAt = performance.now();
+          const resolution =
+            request.contentId !== undefined
+              ? await this.destinationResolver.resolveByContentId(
+                  {
+                    contentId: request.contentId,
+                    destinationName: request.destination,
+                  },
+                  context,
+                )
+              : await this.destinationResolver.resolve(request.destination, context);
+          resolutionLatencyMs = Math.round(performance.now() - resolutionStartedAt);
 
-        if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
-          throw new VisitAssessmentDestinationResolutionError(
-            resolution.status,
-            resolution.candidates ?? [],
+          if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
+            throw new VisitAssessmentDestinationResolutionError(
+              resolution.status,
+              resolution.candidates ?? [],
+            );
+          }
+
+          const assessment = await this.assessResolvedDestination(
+            request,
+            resolution.destination,
+            context,
           );
-        }
-
-        const assessment = await this.assessResolvedDestination(
-          request,
-          resolution.destination,
-          context,
-        );
-        this.logSummary({
-          startedAt,
-          requestedCandidateCount: 1,
-          candidateCount: 1,
-          resolutionLatencyMs,
-          results: [assessment],
-          telemetry,
-        });
-        return assessment;
-      }, telemetry);
+          this.logSummary({
+            startedAt,
+            requestedCandidateCount: 1,
+            candidateCount: 1,
+            resolutionLatencyMs,
+            results: [assessment],
+            context: observedContext,
+          });
+          return assessment;
+        },
+        observedContext,
+      );
     } catch (error) {
       this.logSummary({
         startedAt,
@@ -143,7 +150,7 @@ export class VisitAssessmentService {
         candidateCount: 1,
         resolutionLatencyMs,
         results: [],
-        telemetry,
+        context: observedContext,
         failedCandidates: 1,
       });
       throw error;
@@ -152,11 +159,12 @@ export class VisitAssessmentService {
 
   async assessBatch(request: VisitAssessmentBatchRequest): Promise<VisitAssessmentBatchResult> {
     const normalizedDestinations = normalizeDestinations(request.destinations);
-    const telemetry = new InMemoryRequestTelemetry();
+    const observedContext = ensureObservedContext("assess_accessible_visit", request.context);
     const startedAt = performance.now();
     let resolutionLatencyMs = 0;
 
-    const results = await this.withDeadline(
+    const results = await runWithDeadline(
+      this.performanceOptions.overallDeadlineMs,
       (context) =>
         mapWithConcurrency(
           normalizedDestinations,
@@ -200,7 +208,7 @@ export class VisitAssessmentService {
             };
           },
         ),
-      telemetry,
+      observedContext,
     );
     const successfulAssessments = results.flatMap((result) =>
       result.assessment !== undefined ? [result.assessment] : [],
@@ -217,7 +225,7 @@ export class VisitAssessmentService {
       candidateCount: normalizedDestinations.length,
       resolutionLatencyMs,
       results: successfulAssessments,
-      telemetry,
+      context: observedContext,
       failedCandidates: results.length - successfulAssessments.length,
     });
     return batchResult;
@@ -305,44 +313,30 @@ export class VisitAssessmentService {
     };
   }
 
-  private async withDeadline<TResult>(
-    operation: (context: OperationContext) => Promise<TResult>,
-    telemetry: InMemoryRequestTelemetry,
-  ): Promise<TResult> {
-    const controller = new AbortController();
-    const deadlineAtMs = Date.now() + this.performanceOptions.overallDeadlineMs;
-    const timeoutId = setTimeout(() => {
-      telemetry.recordTimeout();
-      controller.abort(new Error("MCP tool deadline exceeded."));
-    }, this.performanceOptions.overallDeadlineMs);
-
-    try {
-      return await operation({ signal: controller.signal, telemetry, deadlineAtMs });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
   private logSummary(input: {
     startedAt: number;
     requestedCandidateCount: number;
     candidateCount: number;
     resolutionLatencyMs: number;
     results: AccessibleVisitAssessment[];
-    telemetry: InMemoryRequestTelemetry;
+    context: OperationContext;
     failedCandidates?: number;
   }): void {
-    const metrics = input.telemetry.snapshot();
     const partialResultCount =
       (input.failedCandidates ?? 0) +
       input.results.filter((result) => result.overallAssessment.status === "CHECK_REQUIRED").length;
-    console.error("[assess_accessible_visit] summary", {
-      durationMs: Math.round(performance.now() - input.startedAt),
+    const status =
+      input.results.length === 0
+        ? "FAILED"
+        : partialResultCount > 0
+          ? "PARTIAL_SUCCESS"
+          : "SUCCESS";
+    writeToolSummary(input.context, input.startedAt, {
+      status,
       requestedCandidateCount: input.requestedCandidateCount,
       candidateCount: input.candidateCount,
       deduplicatedCandidateCount: input.requestedCandidateCount - input.candidateCount,
       destinationResolutionLatencyMs: input.resolutionLatencyMs,
-      ...metrics,
       partialResultCount,
       sourceStatuses: summarizeSourceStatuses(input.results),
     });

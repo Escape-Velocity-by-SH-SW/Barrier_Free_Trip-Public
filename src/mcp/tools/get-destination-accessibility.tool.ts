@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type { AppContainer } from "../../bootstrap/create-container.js";
 import { travelerTypes } from "../../domain/accessibility.js";
 import { createToolResult } from "./tool-result.js";
+import { createToolObservation } from "../../application/services/tool-observation.js";
 
 const evidenceItemSchema = z.object({
   status: z.enum(["CONFIRMED", "NOT_AVAILABLE", "NOT_PROVIDED", "CONFLICTING"]),
@@ -102,9 +103,18 @@ export function registerGetDestinationAccessibilityTool(
       },
     },
     async (input) => {
-      return createToolResult(
-        await container.services.destinationAccessibilityToolService.execute(input),
-      );
+      const observation = createToolObservation("get_destination_accessibility");
+      try {
+        const result = await container.services.destinationAccessibilityToolService.execute({
+          ...input,
+          context: observation.context,
+        });
+        observation.summary({ status: result.status });
+        return createToolResult(result);
+      } catch (error) {
+        observation.error(error);
+        throw error;
+      }
     },
   );
 }

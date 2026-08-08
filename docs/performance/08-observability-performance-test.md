@@ -2,7 +2,7 @@
 
 먼저 기억할 내용은 세 가지다.
 
-1. 종합 요청 하나가 얼마나 걸렸고 외부 API를 몇 번 불렀는지 stderr 로그로 남긴다.
+1. Tool 요청 하나의 흐름을 같은 `requestId`로 연결하고 한 줄 JSON으로 stderr에 남긴다.
 2. API key, 전체 URL, 원본 응답 같은 민감 정보는 기록하지 않는다.
 3. 모의 성능 테스트는 호출 구조를 비교하는 용도이며 실제 운영 p99를 보장하지 않는다.
 
@@ -14,7 +14,7 @@
 
 ## 2) 적용한 해결 방법
 
-`InMemoryRequestTelemetry`를 요청마다 만들고 `OperationContext`로 하위 계층에 전달한다.
+`InMemoryRequestTelemetry`를 Tool 요청마다 만들고 `OperationContext`로 하위 계층에 전달한다.
 
 - cache hit/miss
 - single-flight join
@@ -22,8 +22,10 @@
 - retry
 - HTTP/overall timeout
 
-`VisitAssessmentService.logSummary()`는 여기에 전체 시간, 입력·정리·중복 제거 후 후보 수, 장소 확정
-시간, 부분 결과 수, 데이터 종류별 상태 수를 합쳐 stderr로 남긴다.
+각 기록에는 Tool에서 만든 같은 `requestId`가 들어간다. `VisitAssessmentService.logSummary()`는
+여기에 전체 시간, 입력·정리·중복 제거 후 후보 수, 장소 확정 시간, 부분 결과 수, 데이터 종류별
+상태 수를 합쳐 stderr로 남긴다. `downstream` 필드에서는 tourism, weather, charger, festival별
+호출 수·누적 시간·재시도·timeout을 바로 확인할 수 있다.
 
 `performance-benchmark.test.ts`는 가짜 지연 시간과 cache·동시 처리 제한을 사용한다. Cache가 비어
 있을 때와 채워졌을 때, 같은 요청 10개, 기존 방식 5개, 묶음 방식 5개를 비교하고 p50/p95/p99를
@@ -47,22 +49,35 @@
 ## 4) 실제 코드 흐름
 
 ```text
-assess/assessBatch 시작
-↓ InMemoryRequestTelemetry 생성
-OperationContext.telemetry
+MCP Tool 시작 → requestId와 InMemoryRequestTelemetry 생성
+↓ OperationContext(requestId, telemetry)
 ↓
 CachedLoader → recordCache / recordSingleFlightJoin
 FetchHttpClient → recordDownstreamCall / recordRetry
-withDeadline → recordTimeout
+deadline → recordDeadlineExceeded
 ↓
 assessment 조립
 ↓
-logSummary
-↓ console.error(stderr)
+tool.summary
+↓ 한 줄 JSON을 console.error(stderr)로 출력
 ```
 
 stdio 방식에서는 stdout 로그가 MCP 메시지와 섞일 수 있으므로 요약도 `console.error`를 써서
-stderr로 보낸다. API key, 인증 값, 전체 URL, 원본 응답은 기록하지 않는다.
+stderr로 보낸다. API key, 인증 값, 전체 URL/query, 사용자 입력 전체, 원본 응답은 기록하지 않는다.
+
+로컬에서 `npm run dev:observe`를 실행하면 별도 helper가 stderr를 터미널과
+`logs/mcp.ndjson`에 복사한다. 애플리케이션은 로그 파일을 직접 관리하지 않으므로 운영의
+`npm run start:http` 실행 방식은 바뀌지 않는다. 조회 명령은 다음과 같다.
+
+```bash
+npm run logs
+npm run logs -- tail
+npm run logs -- errors
+npm run logs -- weather
+npm run logs -- request <requestId>
+npm run logs -- clear
+npm run logs -- help
+```
 
 ## 5) 왜 이 방법을 선택했는가
 
@@ -78,7 +93,8 @@ OpenTelemetry나 Prometheus 같은 도구를 추가하면 장기간의 통계와
 
 - 로그만으로 장기간 percentile을 자동 계산하지 않는다.
 - 여러 서버의 로그를 합치려면 운영용 로그 수집 시스템이 필요하다.
-- 개별 네 Tool보다 종합 Tool summary가 중심이다.
+- 다섯 Tool 모두 start/summary/error를 남기지만, 후보 수와 source 상태 같은 상세 summary는 종합
+  Tool에만 있다.
 - 가짜 밀리초 수치는 운영 성능 목표를 달성했다는 증거가 아니다.
 - 테스트 실행 순서와 시스템 상태에 따라 모의 응답 시간은 실행마다 달라진다.
 - 가짜 repository를 쓰는 단위 테스트에서는 실제 HTTP 측정값이 0인 것이 정상이다.
@@ -98,7 +114,7 @@ OpenTelemetry나 Prometheus 같은 도구를 추가하면 장기간의 통계와
 ```text
 npm run typecheck  PASS
 npm run lint       PASS
-npm test           10 files / 25 tests PASS
+npm test           13 files / 32 tests PASS
 npm run build      PASS
 npm run benchmark  PASS
 ```

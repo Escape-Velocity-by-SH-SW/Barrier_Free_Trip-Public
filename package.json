@@ -16,6 +16,9 @@
     "test": "vitest run --passWithNoTests",
     "start:http": "node dist/http-main.js",
     "start:local": "node --env-file=.env dist/http-main.js",
+    "predev:observe": "npm run build",
+    "dev:observe": "node scripts/dev-observe.mjs",
+    "logs": "node scripts/logs.mjs",
     "benchmark": "vitest run src/application/services/performance-benchmark.test.ts",
     "test:watch": "vitest --passWithNoTests"
   },

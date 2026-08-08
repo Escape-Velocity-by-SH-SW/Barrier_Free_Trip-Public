@@ -94,7 +94,7 @@ export class FetchHttpClient implements HttpClient {
         }
 
         attempt += 1;
-        this.recordRetry(options);
+        this.recordRetry(options, retryDelayMs);
         await waitForRetry(retryDelayMs, options.context?.signal);
       }
     }
@@ -196,10 +196,10 @@ export class FetchHttpClient implements HttpClient {
     return Math.min(exponentialDelay + jitter, this.retryMaxDelayMs);
   }
 
-  private recordRetry(options: HttpRequestOptions): void {
+  private recordRetry(options: HttpRequestOptions, delayMs: number): void {
     const source = options.source ?? this.source;
     if (source !== undefined) {
-      options.context?.telemetry?.recordRetry(source);
+      options.context?.telemetry?.recordRetry(source, delayMs);
     }
   }
 

@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
 import { createToolResult } from "./tool-result.js";
+import { createToolObservation } from "../../application/services/tool-observation.js";
 
 const sourceSchema = z.object({
   name: z.string(),
@@ -89,9 +90,18 @@ export function registerGetDestinationEventRiskTool(
       },
     },
     async (input) => {
-      return createToolResult(
-        await container.services.destinationEventRiskToolService.execute(input),
-      );
+      const observation = createToolObservation("get_destination_event_risk");
+      try {
+        const result = await container.services.destinationEventRiskToolService.execute({
+          ...input,
+          context: observation.context,
+        });
+        observation.summary({ status: result.status });
+        return createToolResult(result);
+      } catch (error) {
+        observation.error(error);
+        throw error;
+      }
     },
   );
 }

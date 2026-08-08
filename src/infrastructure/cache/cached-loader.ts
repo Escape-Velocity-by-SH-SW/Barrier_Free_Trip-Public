@@ -3,6 +3,11 @@ import type {
   OperationContext,
 } from "../../application/ports/operation-context.js";
 import { BoundedTtlCache, type BoundedTtlCacheOptions } from "./bounded-ttl-cache.js";
+import {
+  createStructuredLogEvent,
+  toSafeErrorFields,
+  writeStructuredLog,
+} from "../../application/services/logging.js";
 
 export interface CachedLoaderOptions extends BoundedTtlCacheOptions {
   readonly maxInFlight?: number;
@@ -46,7 +51,7 @@ export class CachedLoader<TKey, TValue> {
 
     const promise = factory()
       .then((value) => {
-        this.writeCache(key, value);
+        this.writeCache(key, value, context);
         return value;
       })
       .finally(() => {
@@ -64,14 +69,18 @@ export class CachedLoader<TKey, TValue> {
     }
   }
 
-  private writeCache(key: TKey, value: TValue): void {
+  private writeCache(key: TKey, value: TValue, context: OperationContext | undefined): void {
     try {
       this.cache.set(key, value);
     } catch (error) {
-      console.error("[cache] failed to store best-effort cache entry", {
-        source: this.source,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      writeStructuredLog(
+        createStructuredLogEvent("error", "cache.error", {
+          ...(context?.requestId !== undefined ? { requestId: context.requestId } : {}),
+          ...(context?.tool !== undefined ? { tool: context.tool } : {}),
+          source: this.source,
+          ...toSafeErrorFields(error),
+        }),
+      );
     }
   }
 }

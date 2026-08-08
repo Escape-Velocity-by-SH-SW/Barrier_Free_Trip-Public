@@ -3,7 +3,6 @@ import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
 import { VisitAssessmentDestinationResolutionError } from "../../application/services/visit-assessment.service.js";
-import { toLoggableError } from "../../application/services/logging.js";
 import { travelerTypes } from "../../domain/accessibility.js";
 import type {
   Destination,
@@ -12,6 +11,7 @@ import type {
 } from "../../domain/destination.js";
 import { createToolResult } from "./tool-result.js";
 import { performanceConfig } from "../../application/services/performance-config.js";
+import { createToolObservation } from "../../application/services/tool-observation.js";
 
 const destinationSchema = z.object({
   name: z.string(),
@@ -150,8 +150,10 @@ export function registerAssessAccessibleVisitTool(
       },
     },
     async (input) => {
+      const observation = createToolObservation("assess_accessible_visit");
       const validationMessage = validateDestinationInput(input);
       if (validationMessage !== undefined) {
+        observation.summary({ status: "INVALID_INPUT", partialResultCount: 1 });
         return createToolResult({
           status: "INVALID_INPUT",
           message: validationMessage,
@@ -169,6 +171,7 @@ export function registerAssessAccessibleVisitTool(
                 visitDate: input.visitDate,
                 travelerType: input.travelerType,
                 radiusKm: input.radiusKm,
+                context: observation.context,
               }),
             ),
           );
@@ -185,6 +188,7 @@ export function registerAssessAccessibleVisitTool(
           visitDate: input.visitDate,
           travelerType: input.travelerType,
           radiusKm: input.radiusKm,
+          context: observation.context,
         });
 
         return createToolResult({
@@ -192,12 +196,7 @@ export function registerAssessAccessibleVisitTool(
           ...result,
         });
       } catch (error) {
-        console.error("[assess_accessible_visit] failed to assess visit", {
-          candidateCount: input.destinations?.length ?? 1,
-          visitDate: input.visitDate,
-          travelerType: input.travelerType,
-          error: toLoggableError(error),
-        });
+        observation.error(error);
 
         if (!(error instanceof VisitAssessmentDestinationResolutionError)) {
           return {

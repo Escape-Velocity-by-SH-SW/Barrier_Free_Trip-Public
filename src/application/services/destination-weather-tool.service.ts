@@ -15,6 +15,7 @@ export interface DestinationWeatherToolRequest {
   destination: string;
   visitDate: string;
   travelerType?: TravelerType;
+  context?: OperationContext;
 }
 
 export interface DestinationCandidateSummary {
@@ -51,8 +52,10 @@ export class DestinationWeatherToolService {
   ) {}
 
   async execute(request: DestinationWeatherToolRequest): Promise<DestinationWeatherToolResult> {
-    return runWithDeadline(performanceConfig.overallDeadlineMs, (context) =>
-      this.executeWithinDeadline(request, context),
+    return runWithDeadline(
+      performanceConfig.overallDeadlineMs,
+      (context) => this.executeWithinDeadline(request, context),
+      request.context,
     );
   }
 
