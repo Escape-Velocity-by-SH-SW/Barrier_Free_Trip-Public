@@ -32,7 +32,7 @@ nationwide page wave 최대 3초 × 여러 wave
 - 종합 service의 `withDeadline()`이 전체 종료 시각과 취소 신호를 담은 `OperationContext` 생성
 - 개별 네 Tool service도 `runWithDeadline()`으로 같은 2.7초 정책 적용
 - Repository port의 optional context를 adapter와 API client까지 전달
-- `FetchHttpClient`가 HTTP 호출 한 번의 900ms 제한과 전체 남은 시간 중 더 짧은 값 사용
+- `FetchHttpClient`가 HTTP 호출 한 번의 1,500ms 제한과 전체 남은 시간 중 더 짧은 값 사용
 - 전체 취소 신호를 내부 `AbortController`에 전달해 실제 `fetch` 중단
 - 재시도 전에 시간이 충분히 남았는지 검사
 
@@ -49,7 +49,7 @@ deadlineAt = 12:00:02.700
 remaining = 500ms
 ```
 
-이때 HTTP 기본 제한이 900ms여도 실제 호출은 500ms보다 오래 기다릴 수 없다. 재시도 전 대기 시간과
+이때 HTTP 기본 제한이 1,500ms여도 실제 호출은 500ms보다 오래 기다릴 수 없다. 재시도 전 대기 시간과
 실행에 필요한 최소 시간이 남은 500ms보다 크면 재시도하지 않는다. 모든 함수가 같은 종료 시각을
 전달받아야 안쪽 함수마다 2.7초를 새로 시작하는 오류를 피할 수 있다.
 
@@ -71,7 +71,7 @@ DestinationResolver → repository → adapter → API client
 ↓
 FetchHttpClient.requestOnce
 ├─ remaining = deadlineAtMs - Date.now()
-├─ attemptTimeout = min(900, remaining)
+├─ attemptTimeout = min(1500, remaining)
 ├─ caller signal을 fetch controller로 forward
 └─ fetch(..., { signal })
 ```
@@ -81,7 +81,7 @@ FetchHttpClient.requestOnce
 
 ### 5) 왜 이 방법을 선택했는가
 
-HTTP 한 번의 제한만 줄이면 900ms보다 느리지만 정상인 응답까지 실패하고, 장소 검색과 네 데이터
+HTTP 한 번의 제한만 줄이면 1,500ms보다 느리지만 정상인 응답까지 실패하고, 장소 검색과 네 데이터
 조회 시간은 여전히 더해진다. 반대로 전체 종료 시간만 두고 HTTP 취소를 연결하지 않으면 사용자에게
 응답한 뒤에도 `fetch`가 연결과 API 호출 한도를 계속 사용한다. 그래서 두 제한을 함께 사용했다.
 
@@ -90,7 +90,7 @@ HTTP 한 번의 제한만 줄이면 900ms보다 느리지만 정상인 응답까
 
 ### 6) 장점과 한계
 
-- 느리지만 결국 성공할 API를 900ms/2.7초에 중단할 수 있다.
+- 느리지만 결국 성공할 API를 1,500ms/2.7초에 중단할 수 있다.
 - AbortSignal을 무시하는 CPU 작업이나 third-party Promise는 deadline만으로 강제 종료할 수 없다.
 - Single-flight 최초 caller의 signal이 공유 Promise에 영향을 주는 한계가 있다.
 - 2.7초는 운영 측정 전의 정책값이며 공공 API가 이 시간 안에 응답한다는 보장은 아니다.
@@ -98,7 +98,7 @@ HTTP 한 번의 제한만 줄이면 900ms보다 느리지만 정상인 응답까
 
 ### 7) 실패 상황
 
-- Per-request 900ms 초과: `HttpRequestError(kind="TIMEOUT")`
+- Per-request 1,500ms 초과: `HttpRequestError(kind="TIMEOUT")`
 - Overall 2.7초 초과: context signal abort, 진행 fetch 중단
 - Retry 대기 중 abort: `waitForRetry()`가 timer/listener 정리 후 reject
 - Remaining 0: 다음 HTTP timeout은 최소 1ms이고 signal도 이미/곧 abort

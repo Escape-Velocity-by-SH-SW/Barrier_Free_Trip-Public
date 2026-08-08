@@ -71,13 +71,13 @@ cache 없이 request마다 반복되었다.
   가져와 6시간 cache하고 방문일 index를 별도 bounded cache한다. 후보 5개가 같은 날짜면 dataset
   download와 date scan을 공유한다.
 - Deadline: Kakao p99 3,000 ms에 300 ms margin을 둔 absolute 2,700 ms다. HTTP attempt timeout은
-  최대 900 ms이고 남은 deadline보다 길 수 없다. signal은 adapter/client/fetch까지 전달된다.
+  최대 1,500 ms이고 남은 deadline보다 길 수 없다. signal은 adapter/client/fetch까지 전달된다.
 - Retry: 최대 1회, 40 ms exponential delay+jitter, 최대 200 ms다. 429/502/503/504, timeout,
   network error만 대상으로 하며 deadline이 부족하면 시작하지 않는다.
 - Partial result: 기존 source status와 `Promise.allSettled`를 유지했다. 한 source/candidate 실패가
   성공한 source/candidate를 제거하지 않는다.
 - Circuit breaker/stale cache: 이번에는 미적용했다. replica별 작은 process cache 환경에서 상태
-  튜닝과 stale 표시 계약의 복잡도가 이득보다 크고, 900 ms source timeout + 2.7초 deadline +
+  튜닝과 stale 표시 계약의 복잡도가 이득보다 크고, 1,500 ms source timeout + 2.7초 deadline +
   partial result가 우선적인 장애 격리를 제공한다.
 
 ## 4. Cache matrix

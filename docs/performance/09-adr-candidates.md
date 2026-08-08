@@ -95,7 +95,7 @@ Kakao p99 3초 목표가 있고 한 데이터의 실패가 이미 얻은 나머�
 ### 결정
 
 Tool 시작 시 2.7초 뒤의 전체 종료 시각을 만들고 `OperationContext`로 취소 신호와 종료 시각을 외부
-조회 코드와 HTTP client에 전달한다. HTTP 호출 한 번은 최대 900ms이며 전체 남은 시간을 넘지
+조회 코드와 HTTP client에 전달한다. HTTP 호출 한 번은 최대 1,500ms이며 전체 남은 시간을 넘지
 못한다. 종료 시각이 오면 `fetch`를 취소하고, 기존 `Promise.allSettled`로 성공한 데이터는 유지하며
 실패한 데이터만 `FAILED`로 표시한다.
 
