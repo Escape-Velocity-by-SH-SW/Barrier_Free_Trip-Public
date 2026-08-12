@@ -112,10 +112,10 @@ describe("accessible visit ChatKit widget", () => {
     expect("collapsed" in widget).toBe(false);
   });
 
-  it("uses a large Card for the next width comparison", () => {
+  it("uses a full-width Card for the next width comparison", () => {
     const widget = buildAccessibleVisitWidgetEnvelope(createAssessment()).widget;
 
-    expect(widget.size).toBe("lg");
+    expect(widget.size).toBe("full");
   });
 
   it("keeps the previously rendered Row and Col summary structure", () => {
