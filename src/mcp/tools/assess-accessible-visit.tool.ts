@@ -6,6 +6,8 @@ import { VisitAssessmentDestinationResolutionError } from "../../application/ser
 import { toLoggableError } from "../../application/services/logging.js";
 import { travelerTypes } from "../../domain/accessibility.js";
 import type { Destination, DestinationCandidate, DestinationResolutionStatus } from "../../domain/destination.js";
+import { buildAccessibleVisitWidgetEnvelope } from "../widgets/accessible-visit.widget.js";
+import { createWidgetToolResult } from "../widgets/widget-result.js";
 import { createToolResult } from "./tool-result.js";
 
 const destinationSchema = z.object({
@@ -120,9 +122,13 @@ export function registerAssessAccessibleVisitTool(
           radiusKm: input.radiusKm,
         });
 
-        return createToolResult({
+        const output = {
           status: "SUCCESS",
           ...result,
+        };
+
+        return createWidgetToolResult(output, {
+          buildEnvelope: () => buildAccessibleVisitWidgetEnvelope(result),
         });
       } catch (error) {
         console.error("[assess_accessible_visit] failed to assess visit", {
