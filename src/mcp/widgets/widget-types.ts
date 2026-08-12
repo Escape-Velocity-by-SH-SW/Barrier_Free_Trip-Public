@@ -32,6 +32,16 @@ export interface DividerWidgetNode {
   readonly size?: number | string;
 }
 
+export interface BadgeWidgetNode {
+  readonly type: "Badge";
+  readonly label: string;
+  readonly color?: "secondary" | "success" | "danger" | "warning" | "info" | "discovery";
+  readonly variant?: "solid" | "soft" | "outline";
+  readonly pill?: boolean;
+  readonly size?: "sm" | "md" | "lg";
+  readonly key?: string;
+}
+
 interface LayoutWidgetNode {
   readonly children: WidgetNode[];
   readonly gap?: number | string;
@@ -41,12 +51,24 @@ interface LayoutWidgetNode {
   readonly flex?: number | string;
   readonly width?: number | string;
   readonly background?: string;
+  readonly radius?:
+    | "2xs"
+    | "xs"
+    | "sm"
+    | "md"
+    | "lg"
+    | "xl"
+    | "2xl"
+    | "3xl"
+    | "4xl"
+    | "full"
+    | "100%"
+    | "none";
 }
 
 export interface BoxWidgetNode extends LayoutWidgetNode {
   readonly type: "Box";
-  readonly direction?: "row" | "column";
-  readonly radius?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
+  readonly direction?: "row" | "col";
 }
 
 export interface RowWidgetNode extends LayoutWidgetNode {
@@ -62,6 +84,7 @@ export type WidgetNode =
   | TitleWidgetNode
   | CaptionWidgetNode
   | DividerWidgetNode
+  | BadgeWidgetNode
   | BoxWidgetNode
   | RowWidgetNode
   | ColWidgetNode;

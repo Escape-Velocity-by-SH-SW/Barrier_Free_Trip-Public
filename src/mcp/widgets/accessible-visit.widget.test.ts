@@ -7,7 +7,6 @@ import type {
 import {
   buildAccessibleVisitWidgetEnvelope,
   buildPreparationItems,
-  buildVisitDetails,
 } from "./accessible-visit.widget.js";
 import { createWidgetToolResult } from "./widget-result.js";
 
@@ -61,7 +60,7 @@ describe("accessible visit ChatKit widget", () => {
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
 
     expect(widgetText).toContain("혼잡할 가능성이 높아요");
-    expect(widgetText).toContain("행사 시간과 이동 경로를 미리 확인해요");
+    expect(widgetText).toContain("행사 시간과 이동 경로를 확인해요");
     expect(buildPreparationItems(assessment)).toContain("🕐 행사 시간과 이동 경로를 확인해요");
   });
 
@@ -73,9 +72,9 @@ describe("accessible visit ChatKit widget", () => {
     strollerAssessment.visit.travelerType = "STROLLER";
     const strollerText = collectText(buildAccessibleVisitWidgetEnvelope(strollerAssessment).widget);
 
-    expect(wheelchairText).toContain("장애인 화장실 정보가 있어요");
-    expect(strollerText).toContain("유모차 대여 정보가 있어요");
-    expect(strollerText).toContain("수유실 정보가 있어요");
+    expect(wheelchairText).toContain("장애인 화장실이 있어요");
+    expect(strollerText).toContain("유모차 대여가 가능해요");
+    expect(strollerText).toContain("수유실이 있어요");
   });
 
   it("does not present NOT_PROVIDED facilities as confirmed", () => {
@@ -83,14 +82,14 @@ describe("accessible visit ChatKit widget", () => {
     assessment.accessibility.facilities.route = { status: "NOT_PROVIDED" };
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
 
-    expect(widgetText).toContain("접근로 정보는 확인이 필요해요");
+    expect(widgetText).toContain("접근로 확인이 필요해요");
     expect(widgetText).not.toContain("접근로가 확인돼요");
   });
 
   it("does not describe UNKNOWN charger status as currently available", () => {
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(createAssessment()).widget);
 
-    expect(widgetText).toContain("충전소의 실시간 상태는 제공되지 않아요");
+    expect(widgetText).toContain("주변 충전소 3곳이에요");
     expect(widgetText).not.toContain("현재 사용할 수 있어요");
   });
 
@@ -103,23 +102,58 @@ describe("accessible visit ChatKit widget", () => {
     expect(new Set(items).size).toBe(items.length);
   });
 
-  it("builds always-visible details without collapsed state", () => {
-    const details = buildVisitDetails(createAssessment());
+  it("returns only the summary without detail content", () => {
+    const widget = buildAccessibleVisitWidgetEnvelope(createAssessment()).widget;
+    const widgetText = collectText(widget);
 
-    expect(details.type).toBe("Card");
-    expect("collapsed" in details).toBe(false);
-    expect(collectText(details)).toContain("상세 정보");
+    expect(widget.key).toBe("accessible-visit-summary");
+    expect(widgetText).not.toContain("상세 정보");
+    expect("collapsed" in widget).toBe(false);
   });
 
-  it("uses the ChatKit direction value for Box components", () => {
+  it("uses Row and Col tiles without a Box direction", () => {
     const envelope = buildAccessibleVisitWidgetEnvelope(createAssessment());
     const boxes = collectNodesByType(envelope.widget, "Box");
+    const rows = collectNodesByType(envelope.widget, "Row");
+    const columns = collectNodesByType(envelope.widget, "Col");
 
-    expect(boxes.length).toBeGreaterThan(0);
-    expect(boxes.every((box) => box.direction === "column")).toBe(true);
+    expect(boxes).toHaveLength(0);
+    expect(rows).toHaveLength(2);
+    expect(columns).toHaveLength(5);
+    expect(columns.every((column) => !("direction" in column))).toBe(true);
+    expect(columns.every((column) => Array.isArray(column.children))).toBe(true);
   });
 
-  it("normalizes public API descriptions into natural Korean sentences", () => {
+  it("creates a status Badge with a label and color", () => {
+    const envelope = buildAccessibleVisitWidgetEnvelope(createAssessment());
+    const badges = collectNodesByType(envelope.widget, "Badge");
+
+    expect(badges).toEqual([
+      expect.objectContaining({
+        label: "주의해서 방문해요",
+        color: "warning",
+        variant: "soft",
+      }),
+    ]);
+  });
+
+  it("prioritizes route and elevator for wheelchair movement", () => {
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(createAssessment()).widget);
+
+    expect(widgetText).toContain("접근로가 확인돼요");
+    expect(widgetText).toContain("엘리베이터 확인이 필요해요");
+    expect(widgetText).not.toContain("출입구가 확인돼요");
+  });
+
+  it("keeps weather, festival, and charger summaries", () => {
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(createAssessment()).widget);
+
+    expect(widgetText).toContain("강한 비에 주의해요");
+    expect(widgetText).toContain("방문일 주변 행사 2개예요");
+    expect(widgetText).toContain("주변 충전소 3곳이에요");
+  });
+
+  it("uses short natural facility wording in the summary", () => {
     const assessment = createAssessment();
     assessment.accessibility.facilities.restroom = {
       status: "CONFIRMED",
@@ -127,7 +161,7 @@ describe("accessible visit ChatKit widget", () => {
     };
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
 
-    expect(widgetText).toContain("장애인 화장실 있다고 안내돼요");
+    expect(widgetText).toContain("장애인 화장실이 있어요");
     expect(widgetText).not.toContain("있음라고");
   });
 
@@ -247,7 +281,12 @@ function collectText(value: unknown): string {
     return "";
   }
   const record = value as Record<string, unknown>;
-  const current = typeof record.value === "string" ? record.value : "";
+  const current =
+    typeof record.value === "string"
+      ? record.value
+      : typeof record.label === "string"
+        ? record.label
+        : "";
   return [current, collectText(record.children)].filter((item) => item.length > 0).join("\n");
 }
 

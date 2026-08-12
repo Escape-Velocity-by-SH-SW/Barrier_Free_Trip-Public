@@ -11,8 +11,9 @@ import type {
 } from "../../domain/visit-assessment.js";
 import type { DailyWeatherForecast, WeatherRiskType } from "../../domain/weather.js";
 import type {
-  BoxWidgetNode,
+  BadgeWidgetNode,
   CardWidgetRoot,
+  ColWidgetNode,
   KakaoWidgetEnvelope,
   TextWidgetNode,
   WidgetNode,
@@ -28,6 +29,13 @@ const overallLabels: Record<VisitAssessmentStatus, string> = {
   ACCESSIBLE_WITH_CAUTION: "🟠 주의해서 방문해요",
   CHECK_REQUIRED: "🟡 방문 전에 확인해요",
   INSUFFICIENT_DATA: "⚪ 정보가 부족해요",
+};
+
+const overallBadges: Record<VisitAssessmentStatus, Pick<BadgeWidgetNode, "label" | "color">> = {
+  LIKELY_ACCESSIBLE: { label: "방문하기 괜찮아요", color: "success" },
+  ACCESSIBLE_WITH_CAUTION: { label: "주의해서 방문해요", color: "warning" },
+  CHECK_REQUIRED: { label: "방문 전에 확인해요", color: "warning" },
+  INSUFFICIENT_DATA: { label: "정보가 부족해요", color: "secondary" },
 };
 
 const travelerLabels: Record<TravelerType, string> = {
@@ -49,8 +57,8 @@ const facilityLabels: Record<FacilityKey, string> = {
 };
 
 const movementPriorities: Record<TravelerType, FacilityKey[]> = {
-  POWER_WHEELCHAIR: ["route", "entrance", "elevator"],
-  MANUAL_WHEELCHAIR: ["route", "entrance", "elevator"],
+  POWER_WHEELCHAIR: ["route", "elevator", "entrance"],
+  MANUAL_WHEELCHAIR: ["route", "elevator", "entrance"],
   STROLLER: ["route", "entrance", "elevator"],
   ELDERLY_COMPANION: ["route", "entrance", "elevator"],
 };
@@ -74,18 +82,8 @@ const weatherRiskPriority: WeatherRiskType[] = [
 export function buildAccessibleVisitWidgetEnvelope(
   assessment: AccessibleVisitAssessment,
 ): KakaoWidgetEnvelope {
-  const summary = buildVisitSummary(assessment);
-  const details = buildVisitDetails(assessment);
-  const widget: CardWidgetRoot = {
-    type: "Card",
-    size: "sm",
-    padding: 16,
-    key: "accessible-visit",
-    children: [...summary.children, divider(), ...details.children],
-  };
-
   return {
-    widget,
+    widget: buildVisitSummary(assessment),
     copy_text: buildAccessibleVisitCopyText(assessment),
   };
 }
@@ -98,7 +96,7 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
       `${formatVisitDate(assessment.visit.date)} · ${travelerLabels[assessment.visit.travelerType]}`,
     ),
     divider(),
-    text(overallLabels[assessment.overallAssessment.status], "lg", "bold"),
+    badge(assessment.overallAssessment.status),
     text(buildOverallReason(assessment), "md"),
     divider(),
     title("한눈에 보기", "md"),
@@ -180,7 +178,7 @@ function buildFacilitySummary(
   heading: string,
   priorities: FacilityKey[],
   facilities: AccessibilityFacilities,
-): BoxWidgetNode {
+): ColWidgetNode {
   const selected = priorities.slice(0, 2);
   return summaryBox(
     heading,
@@ -188,7 +186,7 @@ function buildFacilitySummary(
   );
 }
 
-function buildWeatherSummary(assessment: AccessibleVisitAssessment): BoxWidgetNode {
+function buildWeatherSummary(assessment: AccessibleVisitAssessment): ColWidgetNode {
   const riskType = selectPrimaryWeatherRisk(assessment.weather.risk.riskTypes);
   const forecast = selectVisitForecast(assessment.weather.forecasts, assessment.visit.date);
   const heading = `${getWeatherIcon(riskType)} 날씨`;
@@ -198,7 +196,7 @@ function buildWeatherSummary(assessment: AccessibleVisitAssessment): BoxWidgetNo
   ]);
 }
 
-function buildFestivalSummary(assessment: AccessibleVisitAssessment): BoxWidgetNode {
+function buildFestivalSummary(assessment: AccessibleVisitAssessment): ColWidgetNode {
   const count = assessment.festivalRisk.festivals.length;
   return summaryBox("👥 주변 혼잡", [
     formatFestivalRisk(assessment.festivalRisk.riskLevel),
@@ -206,7 +204,7 @@ function buildFestivalSummary(assessment: AccessibleVisitAssessment): BoxWidgetN
   ]);
 }
 
-function buildChargerSummary(assessment: AccessibleVisitAssessment): BoxWidgetNode {
+function buildChargerSummary(assessment: AccessibleVisitAssessment): ColWidgetNode {
   const chargers = assessment.chargers.chargers;
   const lines = [formatChargerCount(assessment.chargers.status, chargers.length)];
   const nearest = selectNearestCharger(chargers);
@@ -358,9 +356,9 @@ function addAccessibilityPreparation(
 function formatFacilitySummary(key: FacilityKey, evidence: EvidenceItem): string {
   const label = facilityLabels[key];
   if (evidence.status === "CONFIRMED") return formatConfirmedFacility(key);
-  if (evidence.status === "NOT_AVAILABLE") return `${label} 이용이 어렵다고 안내돼요`;
-  if (evidence.status === "CONFLICTING") return `${label} 정보가 달라 확인이 필요해요`;
-  return `${label} 정보는 확인이 필요해요`;
+  if (evidence.status === "NOT_AVAILABLE") return `${label} 이용이 어려워요`;
+  if (evidence.status === "CONFLICTING") return `${label} 확인이 필요해요`;
+  return `${label} 확인이 필요해요`;
 }
 
 function formatFacilityDetail(key: FacilityKey, evidence: EvidenceItem): string {
@@ -372,13 +370,13 @@ function formatFacilityDetail(key: FacilityKey, evidence: EvidenceItem): string 
 
 function formatConfirmedFacility(key: FacilityKey): string {
   if (key === "route") return "접근로가 확인돼요";
-  if (key === "entrance") return "출입구 정보가 있어요";
+  if (key === "entrance") return "출입구가 확인돼요";
   if (key === "elevator") return "엘리베이터가 확인돼요";
-  if (key === "restroom") return "장애인 화장실 정보가 있어요";
+  if (key === "restroom") return "장애인 화장실이 있어요";
   if (key === "parking") return "장애인 주차장 정보가 있어요";
-  if (key === "wheelchairRental") return "휠체어 대여 정보가 있어요";
-  if (key === "stroller") return "유모차 대여 정보가 있어요";
-  return "수유실 정보가 있어요";
+  if (key === "wheelchairRental") return "휠체어 대여가 가능해요";
+  if (key === "stroller") return "유모차 대여가 가능해요";
+  return "수유실이 있어요";
 }
 
 function selectPrimaryWeatherRisk(riskTypes: WeatherRiskType[]): WeatherRiskType | undefined {
@@ -442,7 +440,7 @@ function formatChargerCount(
 ): string {
   if (status === "FAILED") return "충전소 정보를 확인하기 어려워요";
   if (status === "NO_DATA" || count === 0) return "주변 충전소 정보를 찾지 못했어요";
-  return `주변 충전소가 ${count}곳 있어요`;
+  return `주변 충전소 ${count}곳이에요`;
 }
 
 function formatFestivalCount(count: number): string {
@@ -490,7 +488,7 @@ function getDefaultOverallReason(status: VisitAssessmentStatus): string {
   return "확인된 정보가 부족해 방문 전에 문의해야 해요";
 }
 
-function summaryRow(left: BoxWidgetNode, right: BoxWidgetNode): WidgetNode {
+function summaryRow(left: ColWidgetNode, right: ColWidgetNode): WidgetNode {
   return {
     type: "Row",
     gap: 8,
@@ -499,16 +497,24 @@ function summaryRow(left: BoxWidgetNode, right: BoxWidgetNode): WidgetNode {
   };
 }
 
-function summaryBox(heading: string, lines: string[]): BoxWidgetNode {
+function summaryBox(heading: string, lines: string[]): ColWidgetNode {
   return {
-    type: "Box",
-    direction: "column",
+    type: "Col",
     gap: 4,
     padding: 10,
     flex: 1,
     radius: "md",
     background: "#F5F7FA",
     children: [text(heading, "sm", "semibold"), ...lines.map((line) => text(line, "sm"))],
+  };
+}
+
+function badge(status: VisitAssessmentStatus): BadgeWidgetNode {
+  return {
+    type: "Badge",
+    ...overallBadges[status],
+    variant: "soft",
+    size: "md",
   };
 }
 
@@ -521,7 +527,7 @@ function text(
   size: "sm" | "md" | "lg",
   weight: TextWidgetNode["weight"] = "normal",
 ): TextWidgetNode {
-  return { type: "Text", value, size, weight, maxLines: 3 };
+  return { type: "Text", value, size, weight, maxLines: 2 };
 }
 
 function caption(value: string): WidgetNode {
