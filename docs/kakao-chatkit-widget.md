@@ -35,7 +35,7 @@ Kakao Tools Preview에서 우선 렌더링 호환성을 확인할 수 있도록 
 
 ## ChatKit 스펙 적용 사항
 
-현재 OpenAI ChatKit 통합 문서에서 명시한 `Card`를 Widget Root로 사용한다. Card는 우선 `md`
+현재 OpenAI ChatKit 통합 문서에서 명시한 `Card`를 Widget Root로 사용한다. Card는 `lg`
 크기로 렌더링하고, Kakao Tools Preview에서 렌더링이 확인된 단순한 `Row + Col` 구조를 유지한다.
 각 Col은 `flex: 1`과 `align: "stretch"`만 사용하며, 공통 Text에는 `maxLines` 제한을 두지 않는다.
 종합 판단은 문구와 상태 색상을 함께 표시하는 `Badge`를 사용한다.
