@@ -1,12 +1,9 @@
 export interface TextWidgetNode {
   readonly type: "Text";
   readonly value: string;
-  readonly width?: number | string;
   readonly size?: "xs" | "sm" | "md" | "lg" | "xl";
   readonly weight?: "normal" | "medium" | "semibold" | "bold";
-  readonly textAlign?: "start" | "center" | "end";
   readonly color?: string;
-  readonly truncate?: boolean;
   readonly maxLines?: number;
 }
 
@@ -53,7 +50,6 @@ interface LayoutWidgetNode {
   readonly justify?: "start" | "center" | "end" | "stretch" | "between" | "around" | "evenly";
   readonly flex?: number | string;
   readonly width?: number | string;
-  readonly minWidth?: number | string;
   readonly background?: string;
   readonly radius?:
     | "2xs"
@@ -73,7 +69,6 @@ interface LayoutWidgetNode {
 export interface BoxWidgetNode extends LayoutWidgetNode {
   readonly type: "Box";
   readonly direction?: "row" | "column";
-  readonly wrap?: "nowrap" | "wrap" | "wrap-reverse";
 }
 
 export interface RowWidgetNode extends LayoutWidgetNode {
@@ -82,7 +77,6 @@ export interface RowWidgetNode extends LayoutWidgetNode {
 
 export interface ColWidgetNode extends LayoutWidgetNode {
   readonly type: "Col";
-  readonly wrap?: "nowrap" | "wrap" | "wrap-reverse";
 }
 
 export type WidgetNode =
