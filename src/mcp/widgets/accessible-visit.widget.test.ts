@@ -111,17 +111,67 @@ describe("accessible visit ChatKit widget", () => {
     expect("collapsed" in widget).toBe(false);
   });
 
-  it("uses Row and Col tiles without a Box direction", () => {
+  it("uses a full-size Card instead of constraining the summary to sm", () => {
+    const widget = buildAccessibleVisitWidgetEnvelope(createAssessment()).widget;
+
+    expect(widget.size).toBe("full");
+    expect(widget.size).not.toBe("sm");
+  });
+
+  it("uses official wrapping Box and Col properties for responsive tiles", () => {
     const envelope = buildAccessibleVisitWidgetEnvelope(createAssessment());
     const boxes = collectNodesByType(envelope.widget, "Box");
     const rows = collectNodesByType(envelope.widget, "Row");
     const columns = collectNodesByType(envelope.widget, "Col");
 
-    expect(boxes).toHaveLength(0);
-    expect(rows).toHaveLength(2);
+    expect(boxes).toHaveLength(2);
+    expect(rows).toHaveLength(0);
     expect(columns).toHaveLength(5);
-    expect(columns.every((column) => !("direction" in column))).toBe(true);
+    expect(boxes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          direction: "row",
+          wrap: "wrap",
+          width: "100%",
+          align: "stretch",
+        }),
+      ]),
+    );
+    expect(boxes.every((box) => onlyHasKeys(box, boxKeys))).toBe(true);
+    expect(columns.every((column) => onlyHasKeys(column, colKeys))).toBe(true);
+    expect(columns.every((column) => column.flex === 1)).toBe(true);
+    expect(columns.every((column) => column.minWidth === 140)).toBe(true);
+    expect(columns.every((column) => column.align === "stretch")).toBe(true);
     expect(columns.every((column) => Array.isArray(column.children))).toBe(true);
+  });
+
+  it("lets every summary tile Text use its full parent width without a line limit", () => {
+    const widget = buildAccessibleVisitWidgetEnvelope(createAssessment()).widget;
+    const columns = collectNodesByType(widget, "Col");
+
+    expect(columns).not.toHaveLength(0);
+    for (const column of columns) {
+      const children = Array.isArray(column.children) ? column.children : [];
+      const texts = children.filter(
+        (child: unknown): child is Record<string, unknown> =>
+          typeof child === "object" && child !== null && "type" in child && child.type === "Text",
+      );
+
+      expect(texts).not.toHaveLength(0);
+      expect(texts.every((textNode) => textNode.width === "100%")).toBe(true);
+      expect(texts.every((textNode) => textNode.textAlign === "start")).toBe(true);
+      expect(texts.every((textNode) => !("maxLines" in textNode))).toBe(true);
+    }
+  });
+
+  it("does not apply maxLines to every Text node", () => {
+    const texts = collectNodesByType(
+      buildAccessibleVisitWidgetEnvelope(createAssessment()).widget,
+      "Text",
+    );
+
+    expect(texts).not.toHaveLength(0);
+    expect(texts.every((textNode) => !("maxLines" in textNode))).toBe(true);
   });
 
   it("creates a status Badge with a label and color", () => {
@@ -299,4 +349,22 @@ function collectNodesByType(value: unknown, type: string): Array<Record<string, 
   }
   const record = value as Record<string, unknown>;
   return [...(record.type === type ? [record] : []), ...collectNodesByType(record.children, type)];
+}
+
+const boxKeys = new Set(["type", "direction", "wrap", "gap", "align", "width", "children"]);
+const colKeys = new Set([
+  "type",
+  "gap",
+  "padding",
+  "flex",
+  "minWidth",
+  "width",
+  "align",
+  "radius",
+  "background",
+  "children",
+]);
+
+function onlyHasKeys(value: Record<string, unknown>, allowedKeys: ReadonlySet<string>): boolean {
+  return Object.keys(value).every((key) => allowedKeys.has(key));
 }

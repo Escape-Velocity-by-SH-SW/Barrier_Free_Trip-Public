@@ -23,8 +23,8 @@ Card
 ├─ 장소·방문 정보
 ├─ 종합 판단 Badge
 ├─ 한눈에 보기
-│  ├─ Row: 이동 Col · 편의시설 Col
-│  ├─ Row: 날씨 Col · 주변 혼잡 Col
+│  ├─ Box(row, wrap): 이동 Col · 편의시설 Col
+│  ├─ Box(row, wrap): 날씨 Col · 주변 혼잡 Col
 │  └─ 충전 Col
 └─ 준비사항 최대 3개
 ```
@@ -35,9 +35,11 @@ Kakao Tools Preview에서 우선 렌더링 호환성을 확인할 수 있도록 
 
 ## ChatKit 스펙 적용 사항
 
-현재 OpenAI ChatKit 통합 문서에서 명시한 `Card`를 Widget Root로 사용한다. 요약 타일은
-`Box.direction`에 의존하지 않고 `Row + Col`로 구성한다. 종합 판단은 문구와 상태 색상을 함께
-표시하는 `Badge`를 사용한다.
+현재 OpenAI ChatKit 통합 문서에서 명시한 `Card`를 Widget Root로 사용한다. Card는 `full` 크기로
+렌더링하고, 요약 타일은 공식적으로 `wrap`을 지원하는 `Box(direction: "row")` 안에 `Col`로
+구성한다. 각 Col은 최소 폭을 확보하며 공간이 부족하면 다음 줄로 내려간다. 타일 내부 Text는
+`width: "100%"`와 `textAlign: "start"`를 사용하고 공통 `maxLines` 제한을 두지 않는다. 종합
+판단은 문구와 상태 색상을 함께 표시하는 `Badge`를 사용한다.
 
 - [ChatKit WidgetRoot](https://developers.openai.com/api/docs/guides/chatkit-widgets#containers-widgetroot)
 - [ChatKit WidgetNode](https://developers.openai.com/api/docs/guides/chatkit-widgets#components-widgetnode)

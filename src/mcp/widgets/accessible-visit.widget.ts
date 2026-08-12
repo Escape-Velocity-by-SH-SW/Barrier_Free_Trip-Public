@@ -108,7 +108,7 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
 
   return {
     type: "Card",
-    size: "sm",
+    size: "full",
     padding: 16,
     key: "accessible-visit-summary",
     children,
@@ -211,7 +211,7 @@ function buildChargerSummary(assessment: AccessibleVisitAssessment): ColWidgetNo
   if (nearest !== undefined) {
     lines.push(`가장 가까운 곳은 약 ${formatDistance(nearest.distanceKm)}예요`);
   }
-  return summaryBox("🔋 충전", lines);
+  return { ...summaryBox("🔋 충전", lines), width: "100%" };
 }
 
 function buildAccessibilityDetails(assessment: AccessibleVisitAssessment): WidgetNode[] {
@@ -490,9 +490,12 @@ function getDefaultOverallReason(status: VisitAssessmentStatus): string {
 
 function summaryRow(left: ColWidgetNode, right: ColWidgetNode): WidgetNode {
   return {
-    type: "Row",
+    type: "Box",
+    direction: "row",
+    wrap: "wrap",
     gap: 8,
     align: "stretch",
+    width: "100%",
     children: [left, right],
   };
 }
@@ -501,11 +504,13 @@ function summaryBox(heading: string, lines: string[]): ColWidgetNode {
   return {
     type: "Col",
     gap: 4,
-    padding: 10,
+    padding: 8,
     flex: 1,
+    minWidth: 140,
+    align: "stretch",
     radius: "md",
     background: "#F5F7FA",
-    children: [text(heading, "sm", "semibold"), ...lines.map((line) => text(line, "sm"))],
+    children: [tileText(heading, "semibold"), ...lines.map((line) => tileText(line, "normal"))],
   };
 }
 
@@ -527,7 +532,15 @@ function text(
   size: "sm" | "md" | "lg",
   weight: TextWidgetNode["weight"] = "normal",
 ): TextWidgetNode {
-  return { type: "Text", value, size, weight, maxLines: 2 };
+  return { type: "Text", value, size, weight };
+}
+
+function tileText(value: string, weight: TextWidgetNode["weight"]): TextWidgetNode {
+  return {
+    ...text(value, "sm", weight),
+    width: "100%",
+    textAlign: "start",
+  };
 }
 
 function caption(value: string): WidgetNode {
