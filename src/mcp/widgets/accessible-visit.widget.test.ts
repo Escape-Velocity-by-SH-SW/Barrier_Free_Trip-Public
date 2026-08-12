@@ -30,16 +30,71 @@ describe("accessible visit ChatKit widget", () => {
     expect(result.structuredContent.status).toBe("SUCCESS");
   });
 
-  it.each<[VisitAssessmentStatus, string]>([
-    ["LIKELY_ACCESSIBLE", "🟢 방문하기 괜찮아요"],
-    ["ACCESSIBLE_WITH_CAUTION", "🟠 주의해서 방문해요"],
-    ["CHECK_REQUIRED", "🟡 방문 전에 확인해요"],
-    ["INSUFFICIENT_DATA", "⚪ 정보가 부족해요"],
-  ])("maps %s to a user-friendly overall label", (status, label) => {
+  it.each<[VisitAssessmentStatus, string, string, string]>([
+    ["LIKELY_ACCESSIBLE", "🟢 방문하기 괜찮아요", "방문하기 괜찮아요", "success"],
+    ["ACCESSIBLE_WITH_CAUTION", "🟠 주의해서 방문해요", "주의해서 방문해요", "warning"],
+    ["CHECK_REQUIRED", "🟡 방문 전에 확인해요", "방문 전에 확인해요", "warning"],
+    ["INSUFFICIENT_DATA", "⚪ 정보가 부족해요", "정보가 부족해요", "secondary"],
+  ])("maps %s to a user-friendly label and Badge", (status, copyLabel, badgeLabel, color) => {
     const assessment = createAssessment();
     assessment.overallAssessment.status = status;
+    const envelope = buildAccessibleVisitWidgetEnvelope(assessment);
+    const badges = collectNodesByType(envelope.widget, "Badge");
 
-    expect(buildAccessibleVisitWidgetEnvelope(assessment).copy_text).toContain(label);
+    expect(envelope.copy_text).toContain(copyLabel);
+    expect(badges).toEqual([
+      expect.objectContaining({ label: badgeLabel, color, variant: "soft" }),
+    ]);
+  });
+
+  it("combines weather and festival causes in the caution explanation", () => {
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(createAssessment()).widget);
+
+    expect(widgetText).toContain("강한 비와 주변 행사 때문에 이동할 때 조금 더 주의가 필요해요");
+  });
+
+  it("explains failed sources naturally for CHECK_REQUIRED", () => {
+    const assessment = createAssessment();
+    assessment.overallAssessment.status = "CHECK_REQUIRED";
+    assessment.weather.status = "FAILED";
+    assessment.weather.forecasts = [];
+    assessment.weather.risk = { riskLevel: "LOW", riskTypes: [], cautions: [] };
+    assessment.festivalRisk.riskLevel = "LOW";
+    assessment.festivalRisk.festivals = [];
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
+
+    expect(widgetText).toContain(
+      "일부 방문 정보를 확인하기 어려워 출발 전에 다시 확인하는 게 좋아요",
+    );
+  });
+
+  it("names unknown priority facilities when CHECK_REQUIRED has no failed source", () => {
+    const assessment = createLowRiskAssessment("CHECK_REQUIRED");
+    assessment.accessibility.facilities.route = { status: "NOT_PROVIDED" };
+    assessment.accessibility.facilities.elevator = { status: "CONFLICTING" };
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
+
+    expect(widgetText).toContain(
+      "접근로와 엘리베이터 정보를 확인하기 어려워 방문 전에 한 번 더 확인하는 게 좋아요",
+    );
+  });
+
+  it("uses a reassuring explanation for LIKELY_ACCESSIBLE", () => {
+    const assessment = createLowRiskAssessment("LIKELY_ACCESSIBLE");
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
+
+    expect(widgetText).toContain("현재 확인된 정보에서는 큰 위험 신호가 많지 않아요");
+  });
+
+  it("uses accessibility causes for ACCESSIBLE_WITH_CAUTION without weather or festival risk", () => {
+    const assessment = createLowRiskAssessment("ACCESSIBLE_WITH_CAUTION");
+    assessment.accessibility.facilities.route = { status: "NOT_PROVIDED" };
+    assessment.accessibility.facilities.elevator = { status: "CONFLICTING" };
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
+
+    expect(widgetText).toContain(
+      "접근로와 엘리베이터 정보를 확인하기 어려워 이동 전에 한 번 더 확인하는 게 좋아요",
+    );
   });
 
   it("maps weather risk to traveler-specific preparation items", () => {
@@ -48,10 +103,10 @@ describe("accessible visit ChatKit widget", () => {
     strollerAssessment.visit.travelerType = "STROLLER";
 
     expect(buildPreparationItems(wheelchairAssessment)).toEqual(
-      expect.arrayContaining(["🧥 우비를 챙겨요", "🛡️ 휠체어 방수커버를 챙겨요"]),
+      expect.arrayContaining(["☂️ 우비 · 우산", "🛡️ 휠체어 방수커버"]),
     );
     expect(buildPreparationItems(strollerAssessment)).toEqual(
-      expect.arrayContaining(["☂️ 우산을 챙겨요", "🛡️ 유모차 레인커버를 챙겨요"]),
+      expect.arrayContaining(["☂️ 우비 · 우산", "🛡️ 유모차 레인커버"]),
     );
   });
 
@@ -59,9 +114,32 @@ describe("accessible visit ChatKit widget", () => {
     const assessment = createAssessment();
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
 
-    expect(widgetText).toContain("혼잡할 가능성이 높아요");
-    expect(widgetText).toContain("행사 시간과 이동 경로를 확인해요");
-    expect(buildPreparationItems(assessment)).toContain("🕐 행사 시간과 이동 경로를 확인해요");
+    expect(widgetText).toContain("혼잡 가능성 높아요");
+    expect(widgetText).toContain("행사 시간과 이동 경로 확인");
+    expect(buildPreparationItems(assessment)).toContain("🕐 행사 시간과 이동 경로 확인");
+  });
+
+  it.each<[AccessibleVisitAssessment["festivalRisk"]["riskLevel"], string]>([
+    ["LOW", "비교적 여유로워요"],
+    ["MEDIUM", "조금 붐빌 수 있어요"],
+    ["HIGH", "혼잡 가능성 높아요"],
+    ["UNKNOWN", "혼잡 확인 필요"],
+  ])("maps %s festival risk to a short summary", (riskLevel, expected) => {
+    const assessment = createLowRiskAssessment("LIKELY_ACCESSIBLE");
+    assessment.festivalRisk.riskLevel = riskLevel;
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
+
+    expect(widgetText).toContain(expected);
+  });
+
+  it("uses short weather fallback wording when representative values are unavailable", () => {
+    const assessment = createLowRiskAssessment("LIKELY_ACCESSIBLE");
+    assessment.weather.forecasts = [];
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
+
+    expect(widgetText).toContain("큰 위험 없어요");
+    expect(widgetText).toContain("예보 수치 확인 필요");
+    expect(widgetText).not.toContain("대표 날씨 수치를 확인하기 어려워요");
   });
 
   it("selects important facilities for wheelchair and stroller travelers", () => {
@@ -72,8 +150,8 @@ describe("accessible visit ChatKit widget", () => {
     strollerAssessment.visit.travelerType = "STROLLER";
     const strollerText = collectText(buildAccessibleVisitWidgetEnvelope(strollerAssessment).widget);
 
-    expect(wheelchairText).toContain("장애인 화장실이 있어요");
-    expect(strollerText).toContain("유모차 대여가 가능해요");
+    expect(wheelchairText).toContain("화장실 있어요");
+    expect(strollerText).toContain("유모차 대여 가능");
     expect(strollerText).toContain("수유실이 있어요");
   });
 
@@ -82,15 +160,26 @@ describe("accessible visit ChatKit widget", () => {
     assessment.accessibility.facilities.route = { status: "NOT_PROVIDED" };
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
 
-    expect(widgetText).toContain("접근로 확인이 필요해요");
-    expect(widgetText).not.toContain("접근로가 확인돼요");
+    expect(widgetText).toContain("접근로 확인 필요");
+    expect(widgetText).not.toContain("접근로 확인돼요");
   });
 
   it("does not describe UNKNOWN charger status as currently available", () => {
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(createAssessment()).widget);
 
-    expect(widgetText).toContain("주변 충전소 3곳이에요");
+    expect(widgetText).toContain("주변 충전소 3곳");
+    expect(widgetText).toContain("가까운 곳 0.4km");
     expect(widgetText).not.toContain("현재 사용할 수 있어요");
+  });
+
+  it("uses a short check-required charger summary when lookup fails", () => {
+    const assessment = createAssessment();
+    assessment.chargers.status = "FAILED";
+    assessment.chargers.chargers = [];
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
+
+    expect(widgetText).toContain("정보 확인 필요");
+    expect(widgetText).not.toContain("현재 사용 가능");
   });
 
   it("deduplicates preparation items and limits them to three", () => {
@@ -112,10 +201,10 @@ describe("accessible visit ChatKit widget", () => {
     expect("collapsed" in widget).toBe(false);
   });
 
-  it("uses a full-width Card for the next width comparison", () => {
+  it("uses the largest Card size verified in Kakao Preview", () => {
     const widget = buildAccessibleVisitWidgetEnvelope(createAssessment()).widget;
 
-    expect(widget.size).toBe("full");
+    expect(widget.size).toBe("lg");
   });
 
   it("keeps the previously rendered Row and Col summary structure", () => {
@@ -157,7 +246,9 @@ describe("accessible visit ChatKit widget", () => {
 
     expect(serialized).not.toContain('"wrap"');
     expect(serialized).not.toContain('"minWidth"');
+    expect(serialized).not.toContain('"width"');
     expect(serialized).not.toContain('"textAlign"');
+    expect(serialized).not.toContain('"full"');
   });
 
   it("does not apply maxLines to every Text node", () => {
@@ -186,17 +277,17 @@ describe("accessible visit ChatKit widget", () => {
   it("prioritizes route and elevator for wheelchair movement", () => {
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(createAssessment()).widget);
 
-    expect(widgetText).toContain("접근로가 확인돼요");
-    expect(widgetText).toContain("엘리베이터 확인이 필요해요");
-    expect(widgetText).not.toContain("출입구가 확인돼요");
+    expect(widgetText).toContain("접근로 확인돼요");
+    expect(widgetText).toContain("엘리베이터 확인 필요");
+    expect(widgetText).not.toContain("출입구 확인돼요");
   });
 
   it("keeps weather, festival, and charger summaries", () => {
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(createAssessment()).widget);
 
     expect(widgetText).toContain("강한 비에 주의해요");
-    expect(widgetText).toContain("방문일 주변 행사 2개예요");
-    expect(widgetText).toContain("주변 충전소 3곳이에요");
+    expect(widgetText).toContain("주변 행사 2개");
+    expect(widgetText).toContain("주변 충전소 3곳");
   });
 
   it("uses short natural facility wording in the summary", () => {
@@ -207,7 +298,7 @@ describe("accessible visit ChatKit widget", () => {
     };
     const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
 
-    expect(widgetText).toContain("장애인 화장실이 있어요");
+    expect(widgetText).toContain("화장실 있어요");
     expect(widgetText).not.toContain("있음라고");
   });
 
@@ -317,6 +408,21 @@ function createAssessment(): AccessibleVisitAssessment {
     checklist: [],
     phoneCheckQuestions: [],
   };
+}
+
+function createLowRiskAssessment(status: VisitAssessmentStatus): AccessibleVisitAssessment {
+  const assessment = createAssessment();
+  assessment.overallAssessment.status = status;
+  assessment.overallAssessment.reasons = [];
+  assessment.accessibility.facilities.elevator = { status: "CONFIRMED" };
+  assessment.accessibility.facilities.wheelchairRental = { status: "CONFIRMED" };
+  assessment.accessibility.unknowns = [];
+  assessment.weather.risk = { riskLevel: "LOW", riskTypes: [], cautions: [] };
+  assessment.festivalRisk.riskLevel = "LOW";
+  assessment.festivalRisk.festivals = [];
+  assessment.festivalRisk.cautions = [];
+  assessment.unknowns = [];
+  return assessment;
 }
 
 function collectText(value: unknown): string {
