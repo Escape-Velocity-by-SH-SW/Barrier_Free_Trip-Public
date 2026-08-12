@@ -19,34 +19,32 @@ content[0].text
 ## Widget 구조
 
 ```text
-Basic
-├─ Summary Card
-│  ├─ 장소·방문 정보
-│  ├─ 종합 판단
-│  ├─ 이동·편의시설·날씨·주변 혼잡·충전 요약
-│  └─ 준비사항 최대 3개
-└─ Detail Card
-   ├─ collapsed: true
+Card
+├─ 장소·방문 정보
+├─ 종합 판단
+├─ 이동·편의시설·날씨·주변 혼잡·충전 요약
+├─ 준비사항 최대 3개
+└─ 상세 정보
    ├─ 이동과 편의시설
    ├─ 날씨
    ├─ 주변 행사 · 혼잡
    └─ 충전
 ```
 
-Summary와 Detail Builder가 분리되어 있어 Kakao Preview에서 `collapsed`가 기대대로 동작하지 않으면
-상세 Card의 `collapsed`만 제거해 짧은 상세 정보를 항상 표시하는 구조로 바꿀 수 있다.
+Kakao Tools Preview에서 우선 렌더링 호환성을 확인할 수 있도록 최상위 Widget Root는 개발 가이드
+예시와 같은 단일 `Card`를 사용한다. Summary와 Detail Builder는 계속 분리하되 최종 Card 안에서
+두 영역의 children을 합친다.
 
-## collapsed에 대해 확인된 사실
+## ChatKit 스펙 적용 사항
 
-현재 ChatKit.js 타입에서 `BasicRoot`는 Component와 다른 WidgetRoot를 자식으로 가질 수 있고,
-`Card`에는 선택적인 `collapsed?: boolean` 속성이 있다.
+현재 OpenAI ChatKit 통합 문서에서 명시한 `Card`를 Widget Root로 사용한다. `Box.direction`은
+문서에 명시된 `row | column` 중 `column`을 사용한다.
 
-- [ChatKit.js BasicRoot](https://openai.github.io/chatkit-js/api/openai/chatkit/namespaces/widgets/type-aliases/basicroot/)
-- [ChatKit.js Card](https://openai.github.io/chatkit-js/api/openai/chatkit/namespaces/widgets/type-aliases/card/)
+- [ChatKit WidgetRoot](https://developers.openai.com/api/docs/guides/chatkit-widgets#containers-widgetroot)
+- [ChatKit WidgetNode](https://developers.openai.com/api/docs/guides/chatkit-widgets#components-widgetnode)
 
-그러나 타입 문서에는 `collapsed: true`가 사용자의 클릭으로 펼쳐지고 다시 접히는 Accordion이라고
-명시되어 있지 않다. 따라서 코드에서는 초기 접힘 실험값으로만 사용하며, 실제 토글 동작은 Kakao
-Tools Preview에서 확인해야 한다.
+`collapsed`의 실제 토글 동작은 Kakao Tools에서 확인되지 않았으므로 이번 렌더링 검증 단계에서는
+사용하지 않는다. 상세 정보는 요약 아래에 항상 표시한다.
 
 ## Kakao Tools Preview 확인 순서
 
@@ -67,10 +65,6 @@ Tools Preview에서 확인해야 한다.
 2. 내부 Enum 대신 `🟠 주의해서 방문해요` 같은 문구가 표시되는지 확인한다.
 3. 축제 위험이 `실시간 혼잡도`로 표현되지 않는지 확인한다.
 4. 충전소를 현재 사용할 수 있다고 단정하지 않는지 확인한다.
-5. `상세 정보 보기`가 처음에 접혀 있는지 확인한다.
-6. 제목 또는 Card를 눌렀을 때 상세 내용이 펼쳐지고 다시 접히는지 확인한다.
-7. 공유 동작에서 `copy_text` Markdown이 정상적으로 사용되는지 확인한다.
-8. Widget 렌더링이 실패할 때 기존 Text 결과가 보이는지 확인한다.
-
-`collapsed`가 단순히 내용을 숨기고 클릭할 수 없다면 상세 Card에서 `collapsed: true`를 제거한 뒤
-요약 아래에 짧은 상세 내용을 항상 표시하는 방식으로 전환한다.
+5. 요약 아래의 상세 정보가 별도 조작 없이 표시되는지 확인한다.
+6. 공유 동작에서 `copy_text` Markdown이 정상적으로 사용되는지 확인한다.
+7. Widget 렌더링이 실패할 때 기존 Text 결과가 보이는지 확인한다.

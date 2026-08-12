@@ -45,7 +45,7 @@ interface LayoutWidgetNode {
 
 export interface BoxWidgetNode extends LayoutWidgetNode {
   readonly type: "Box";
-  readonly direction?: "row" | "col";
+  readonly direction?: "row" | "column";
   readonly radius?: "xs" | "sm" | "md" | "lg" | "xl" | "2xl";
 }
 
@@ -75,20 +75,10 @@ export interface CardWidgetRoot {
   readonly size?: "sm" | "md" | "lg" | "full";
   readonly padding?: number | string;
   readonly background?: string;
-  readonly collapsed?: boolean;
   readonly key?: string;
 }
 
-export interface BasicWidgetRoot {
-  readonly type: "Basic";
-  readonly children: Array<WidgetNode | CardWidgetRoot>;
-  readonly direction?: "row" | "col";
-  readonly gap?: number | string;
-  readonly padding?: number | string;
-  readonly key?: string;
-}
-
-export type ChatKitWidgetRoot = CardWidgetRoot | BasicWidgetRoot;
+export type ChatKitWidgetRoot = CardWidgetRoot;
 
 export interface KakaoWidgetEnvelope {
   readonly widget: ChatKitWidgetRoot;

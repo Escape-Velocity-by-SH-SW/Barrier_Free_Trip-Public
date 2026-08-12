@@ -11,7 +11,6 @@ import type {
 } from "../../domain/visit-assessment.js";
 import type { DailyWeatherForecast, WeatherRiskType } from "../../domain/weather.js";
 import type {
-  BasicWidgetRoot,
   BoxWidgetNode,
   CardWidgetRoot,
   KakaoWidgetEnvelope,
@@ -77,16 +76,17 @@ export function buildAccessibleVisitWidgetEnvelope(
 ): KakaoWidgetEnvelope {
   const summary = buildVisitSummary(assessment);
   const details = buildVisitDetails(assessment);
-  const widget: BasicWidgetRoot = {
-    type: "Basic",
-    direction: "col",
-    gap: 10,
-    children: [summary, details],
+  const widget: CardWidgetRoot = {
+    type: "Card",
+    size: "sm",
+    padding: 16,
+    key: "accessible-visit",
+    children: [...summary.children, divider(), ...details.children],
   };
 
   return {
     widget,
-    copy_text: buildCopyText(assessment),
+    copy_text: buildAccessibleVisitCopyText(assessment),
   };
 }
 
@@ -122,10 +122,9 @@ export function buildVisitDetails(assessment: AccessibleVisitAssessment): CardWi
     type: "Card",
     size: "sm",
     padding: 16,
-    collapsed: true,
     key: "accessible-visit-details",
     children: [
-      title("상세 정보 보기", "md"),
+      title("상세 정보", "md"),
       divider(),
       ...buildAccessibilityDetails(assessment),
       divider(),
@@ -304,7 +303,7 @@ function buildOverallReason(assessment: AccessibleVisitAssessment): string {
   return getDefaultOverallReason(assessment.overallAssessment.status);
 }
 
-function buildCopyText(assessment: AccessibleVisitAssessment): string {
+export function buildAccessibleVisitCopyText(assessment: AccessibleVisitAssessment): string {
   const preparation = buildPreparationItems(assessment).map(stripLeadingEmoji).join(" · ");
   return [
     `**${assessment.destination.name}**`,
@@ -366,7 +365,7 @@ function formatFacilitySummary(key: FacilityKey, evidence: EvidenceItem): string
 
 function formatFacilityDetail(key: FacilityKey, evidence: EvidenceItem): string {
   if (evidence.description !== undefined && evidence.description.trim().length > 0) {
-    return `${trimSentenceEnding(evidence.description)}라고 안내돼요`;
+    return formatReportedDescription(evidence.description);
   }
   return formatFacilitySummary(key, evidence);
 }
@@ -503,7 +502,7 @@ function summaryRow(left: BoxWidgetNode, right: BoxWidgetNode): WidgetNode {
 function summaryBox(heading: string, lines: string[]): BoxWidgetNode {
   return {
     type: "Box",
-    direction: "col",
+    direction: "column",
     gap: 4,
     padding: 10,
     flex: 1,
@@ -556,6 +555,25 @@ function joinKorean(values: string[]): string {
 
 function trimSentenceEnding(value: string): string {
   return value.trim().replaceAll(/[.!?。]+$/g, "");
+}
+
+function formatReportedDescription(value: string): string {
+  const description = trimSentenceEnding(value);
+  const endings: ReadonlyArray<readonly [RegExp, string]> = [
+    [/가능함$/, "가능하다고"],
+    [/있음$/, "있다고"],
+    [/없음$/, "없다고"],
+    [/가능$/, "가능하다고"],
+    [/됨$/, "된다고"],
+  ];
+
+  for (const [pattern, replacement] of endings) {
+    if (pattern.test(description)) {
+      return `${description.replace(pattern, replacement)} 안내돼요`;
+    }
+  }
+
+  return `${description} 내용으로 안내돼요`;
 }
 
 function stripLeadingEmoji(value: string): string {

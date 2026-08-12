@@ -24,6 +24,7 @@ describe("accessible visit ChatKit widget", () => {
     const contentEnvelope = JSON.parse(result.content[0]?.text ?? "{}") as Record<string, unknown>;
 
     expect(envelope.widget).toBeDefined();
+    expect(envelope.widget.type).toBe("Card");
     expect(envelope.copy_text).toContain("경복궁");
     expect("status" in envelope.widget).toBe(false);
     expect(contentEnvelope).toEqual(envelope);
@@ -102,12 +103,32 @@ describe("accessible visit ChatKit widget", () => {
     expect(new Set(items).size).toBe(items.length);
   });
 
-  it("builds the detail card in the collapsed experiment state", () => {
+  it("builds always-visible details without collapsed state", () => {
     const details = buildVisitDetails(createAssessment());
 
     expect(details.type).toBe("Card");
-    expect(details.collapsed).toBe(true);
-    expect(collectText(details)).toContain("상세 정보 보기");
+    expect("collapsed" in details).toBe(false);
+    expect(collectText(details)).toContain("상세 정보");
+  });
+
+  it("uses the ChatKit direction value for Box components", () => {
+    const envelope = buildAccessibleVisitWidgetEnvelope(createAssessment());
+    const boxes = collectNodesByType(envelope.widget, "Box");
+
+    expect(boxes.length).toBeGreaterThan(0);
+    expect(boxes.every((box) => box.direction === "column")).toBe(true);
+  });
+
+  it("normalizes public API descriptions into natural Korean sentences", () => {
+    const assessment = createAssessment();
+    assessment.accessibility.facilities.restroom = {
+      status: "CONFIRMED",
+      description: "장애인 화장실 있음",
+    };
+    const widgetText = collectText(buildAccessibleVisitWidgetEnvelope(assessment).widget);
+
+    expect(widgetText).toContain("장애인 화장실 있다고 안내돼요");
+    expect(widgetText).not.toContain("있음라고");
   });
 
   it("can be serialized and parsed as JSON", () => {
@@ -124,15 +145,13 @@ describe("accessible visit ChatKit widget", () => {
         buildEnvelope: () => {
           throw new Error("widget test failure");
         },
+        fallbackText: "경복궁 방문 정보를 확인해요",
         logError: (error) => loggedErrors.push(error),
       },
     );
 
     expect(result.structuredContent).toEqual({ status: "SUCCESS", destination: "경복궁" });
-    expect(JSON.parse(result.content[0]?.text ?? "{}")).toEqual({
-      status: "SUCCESS",
-      destination: "경복궁",
-    });
+    expect(result.content[0]?.text).toBe("경복궁 방문 정보를 확인해요");
     expect(loggedErrors).toHaveLength(1);
   });
 });
@@ -230,4 +249,15 @@ function collectText(value: unknown): string {
   const record = value as Record<string, unknown>;
   const current = typeof record.value === "string" ? record.value : "";
   return [current, collectText(record.children)].filter((item) => item.length > 0).join("\n");
+}
+
+function collectNodesByType(value: unknown, type: string): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => collectNodesByType(item, type));
+  }
+  if (typeof value !== "object" || value === null) {
+    return [];
+  }
+  const record = value as Record<string, unknown>;
+  return [...(record.type === type ? [record] : []), ...collectNodesByType(record.children, type)];
 }

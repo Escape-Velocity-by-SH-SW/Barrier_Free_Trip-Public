@@ -6,7 +6,10 @@ import { VisitAssessmentDestinationResolutionError } from "../../application/ser
 import { toLoggableError } from "../../application/services/logging.js";
 import { travelerTypes } from "../../domain/accessibility.js";
 import type { Destination, DestinationCandidate, DestinationResolutionStatus } from "../../domain/destination.js";
-import { buildAccessibleVisitWidgetEnvelope } from "../widgets/accessible-visit.widget.js";
+import {
+  buildAccessibleVisitCopyText,
+  buildAccessibleVisitWidgetEnvelope,
+} from "../widgets/accessible-visit.widget.js";
 import { createWidgetToolResult } from "../widgets/widget-result.js";
 import { createToolResult } from "./tool-result.js";
 
@@ -129,6 +132,7 @@ export function registerAssessAccessibleVisitTool(
 
         return createWidgetToolResult(output, {
           buildEnvelope: () => buildAccessibleVisitWidgetEnvelope(result),
+          fallbackText: buildAccessibleVisitCopyText(result),
         });
       } catch (error) {
         console.error("[assess_accessible_visit] failed to assess visit", {
@@ -150,16 +154,37 @@ export function registerAssessAccessibleVisitTool(
           };
         }
 
+        const resolutionResult = createDestinationResolutionResult(
+          error.status,
+          error.candidates,
+          input,
+        );
         return createToolResult(
-          createDestinationResolutionResult(
-            error.status,
-            error.candidates,
-            input,
-          ),
+          resolutionResult,
+          createDestinationResolutionText(resolutionResult),
         );
       }
     },
   );
+}
+
+function createDestinationResolutionText(
+  result: ReturnType<typeof createDestinationResolutionResult>,
+): string {
+  if (result.status !== "AMBIGUOUS_DESTINATION") {
+    return result.message;
+  }
+
+  const candidates = (result.candidates ?? [])
+    .map((candidate) => `- ${candidate.name}${candidate.address ? ` · ${candidate.address}` : ""}`)
+    .join("\n");
+  return [
+    result.message,
+    candidates.length > 0 ? `\n${candidates}` : "",
+    "\n후보 하나를 선택해 다시 요청해요",
+  ]
+    .filter((line) => line.length > 0)
+    .join("\n");
 }
 
 function createDestinationResolutionResult(

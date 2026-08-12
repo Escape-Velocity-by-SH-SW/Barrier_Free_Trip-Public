@@ -259,8 +259,8 @@ INSUFFICIENT_DATA
 
 단일 관광지 조회가 성공하면 Kakao Tools용 ChatKit Widget도 함께 제공합니다. 기존 Domain 결과는
 `structuredContent`에 유지하고, Widget과 공유용 Markdown은 `content.text`에 JSON Envelope로
-반환합니다. Widget의 상세 Card는 `collapsed: true` 상태로 구성했으며, 실제 펼치기·접기 동작은
-Kakao Tools Preview에서 확인해야 합니다. 자세한 확인 방법은
+반환합니다. Kakao Tools 개발 가이드의 예시와 같은 단일 `Card` 안에 요약과 상세 정보를 항상
+표시합니다. 실제 렌더링 확인 방법은
 [Kakao Tools ChatKit Widget 확인 가이드](./docs/kakao-chatkit-widget.md)를 참고하세요.
 
 ## 대표 동작 예시

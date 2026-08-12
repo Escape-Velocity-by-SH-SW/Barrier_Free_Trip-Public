@@ -3,6 +3,7 @@ import type { KakaoWidgetEnvelope } from "./widget-types.js";
 
 export interface CreateWidgetToolResultOptions {
   readonly buildEnvelope: () => KakaoWidgetEnvelope;
+  readonly fallbackText?: string;
   readonly logError?: (error: unknown) => void;
 }
 
@@ -24,7 +25,7 @@ export function createWidgetToolResult(
     };
   } catch (error) {
     (options.logError ?? logWidgetBuildFailure)(error);
-    return createToolResult(output);
+    return createToolResult(output, options.fallbackText);
   }
 }
 
