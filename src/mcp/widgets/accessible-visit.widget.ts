@@ -122,6 +122,7 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
     size: "lg",
     padding: 16,
     key: "accessible-visit-summary",
+    collapsed: true,
     children,
   };
 }

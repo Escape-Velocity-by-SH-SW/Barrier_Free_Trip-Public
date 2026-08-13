@@ -96,6 +96,7 @@ export interface CardWidgetRoot {
   readonly type: "Card";
   readonly children: WidgetNode[];
   readonly size?: "sm" | "md" | "lg" | "full";
+  readonly collapsed?: boolean;
   readonly padding?: number | string;
   readonly background?: string;
   readonly key?: string;
