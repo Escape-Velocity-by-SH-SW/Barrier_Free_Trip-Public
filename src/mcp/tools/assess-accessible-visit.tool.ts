@@ -9,6 +9,11 @@ import type {
   DestinationCandidate,
   DestinationResolutionStatus,
 } from "../../domain/destination.js";
+import {
+  buildAccessibleVisitCopyText,
+  buildAccessibleVisitWidgetEnvelope,
+} from "../widgets/accessible-visit.widget.js";
+import { createWidgetToolResult } from "../widgets/widget-result.js";
 import { createToolResult } from "./tool-result.js";
 import { performanceConfig } from "../../application/services/performance-config.js";
 import { createToolObservation } from "../../application/services/tool-observation.js";
@@ -191,9 +196,14 @@ export function registerAssessAccessibleVisitTool(
           context: observation.context,
         });
 
-        return createToolResult({
+        const output = {
           status: "SUCCESS",
           ...result,
+        };
+
+        return createWidgetToolResult(output, {
+          buildEnvelope: () => buildAccessibleVisitWidgetEnvelope(result),
+          fallbackText: buildAccessibleVisitCopyText(result),
         });
       } catch (error) {
         observation.error(error);
@@ -210,8 +220,14 @@ export function registerAssessAccessibleVisitTool(
           };
         }
 
+        const resolutionResult = createDestinationResolutionResult(
+          error.status,
+          error.candidates,
+          input,
+        );
         return createToolResult(
-          createDestinationResolutionResult(error.status, error.candidates, input),
+          resolutionResult,
+          createDestinationResolutionText(resolutionResult),
         );
       }
     },
@@ -274,6 +290,25 @@ export function validateDestinationInput(input: {
   }
 
   return undefined;
+}
+
+function createDestinationResolutionText(
+  result: ReturnType<typeof createDestinationResolutionResult>,
+): string {
+  if (result.status !== "AMBIGUOUS_DESTINATION") {
+    return result.message;
+  }
+
+  const candidates = (result.candidates ?? [])
+    .map((candidate) => `- ${candidate.name}${candidate.address ? ` · ${candidate.address}` : ""}`)
+    .join("\n");
+  return [
+    result.message,
+    candidates.length > 0 ? `\n${candidates}` : "",
+    "\n후보 하나를 선택해 다시 요청해요",
+  ]
+    .filter((line) => line.length > 0)
+    .join("\n");
 }
 
 function createDestinationResolutionResult(
