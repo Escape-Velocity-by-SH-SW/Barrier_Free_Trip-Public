@@ -4,8 +4,6 @@ import type { FestivalSourceData } from "../../domain/festival.js";
 import type { OperationContext } from "./operation-context.js";
 
 export interface FestivalQuery {
-  destinationName?: string;
-  address?: string;
   coordinates: Coordinates;
   visitDate: string;
   radiusKm: number;

@@ -31,7 +31,6 @@ function main(): void {
   httpServer.on("error", (error) => {
     writeStructuredLog(createStructuredLogEvent("error", "server.error", toSafeErrorFields(error)));
     process.exitCode = 1;
-    process.exit();
   });
 
   registerShutdownHandlers(httpServer);
@@ -115,7 +114,7 @@ function registerShutdownHandlers(httpServer: ReturnType<typeof createHttpServer
         process.exitCode = 1;
       }
 
-      process.exit();
+      if (error === undefined) process.exitCode ??= 0;
     });
   };
 

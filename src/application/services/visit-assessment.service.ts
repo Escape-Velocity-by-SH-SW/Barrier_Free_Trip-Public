@@ -26,6 +26,7 @@ import type { OperationContext } from "../ports/operation-context.js";
 import { mapWithConcurrency } from "./concurrency.js";
 import { runWithDeadline } from "./deadline.js";
 import { ensureObservedContext, writeToolSummary } from "./tool-observation.js";
+import { performanceConfig } from "./performance-config.js";
 
 export interface VisitAssessmentRequest {
   destination: string;
@@ -92,8 +93,8 @@ export class VisitAssessmentService {
     private readonly chargerService: ChargerService,
     private readonly festivalRiskService: FestivalRiskService,
     private readonly performanceOptions: VisitAssessmentPerformanceOptions = {
-      overallDeadlineMs: 2_700,
-      destinationConcurrency: 2,
+      overallDeadlineMs: performanceConfig.overallDeadlineMs,
+      destinationConcurrency: performanceConfig.destinationConcurrency,
     },
   ) {}
 
@@ -180,7 +181,10 @@ export class VisitAssessmentService {
 
             const resolutionStartedAt = performance.now();
             const resolution = await this.destinationResolver.resolve(destinationName, context);
-            resolutionLatencyMs += Math.round(performance.now() - resolutionStartedAt);
+            resolutionLatencyMs = Math.max(
+              resolutionLatencyMs,
+              Math.round(performance.now() - resolutionStartedAt),
+            );
 
             if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
               return createBatchFailure(
@@ -331,15 +335,20 @@ export class VisitAssessmentService {
         : partialResultCount > 0
           ? "PARTIAL_SUCCESS"
           : "SUCCESS";
-    writeToolSummary(input.context, input.startedAt, {
-      status,
-      requestedCandidateCount: input.requestedCandidateCount,
-      candidateCount: input.candidateCount,
-      deduplicatedCandidateCount: input.requestedCandidateCount - input.candidateCount,
-      destinationResolutionLatencyMs: input.resolutionLatencyMs,
-      partialResultCount,
-      sourceStatuses: summarizeSourceStatuses(input.results),
-    });
+    writeToolSummary(
+      input.context,
+      input.startedAt,
+      {
+        status,
+        requestedCandidateCount: input.requestedCandidateCount,
+        candidateCount: input.candidateCount,
+        deduplicatedCandidateCount: input.requestedCandidateCount - input.candidateCount,
+        destinationResolutionLatencyMs: input.resolutionLatencyMs,
+        partialResultCount,
+        sourceStatuses: summarizeSourceStatuses(input.results),
+      },
+      input.context.logWriter,
+    );
   }
 }
 

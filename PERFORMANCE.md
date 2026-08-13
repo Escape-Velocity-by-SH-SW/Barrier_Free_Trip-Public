@@ -82,14 +82,14 @@ cache 없이 request마다 반복되었다.
 
 ## 4. Cache matrix
 
-| Data                        | Key                            |            TTL | Max entries | Single-flight |
-| --------------------------- | ------------------------------ | -------------: | ----------: | ------------- | ---------- | ------ | --- | --- |
-| Destination search          | normalized keyword             |           24 h |         256 | Yes           |
-| Accessibility               | `contentId                     | contentTypeId` |        12 h | 512           | Yes        |
-| Festival nationwide dataset | `nationwide`                   |            6 h |           1 | Yes           |
-| Festival active-date index  | `visitDate`                    |            6 h |          32 | Yes           |
-| Charger region dataset      | normalized province/cityCounty |         30 min |          64 | Yes           |
-| Weather                     | KMA `nx                        |             ny |    baseDate | baseTime      | visitDate` | 10 min | 256 | Yes |
+| Data                        | Key                                                     |    TTL | Max entries | Single-flight |
+| --------------------------- | ------------------------------------------------------- | -----: | ----------: | ------------- |
+| Destination search          | normalized keyword                                      |   24 h |         256 | Yes           |
+| Accessibility               | `contentId`                                             |   12 h |         512 | Yes           |
+| Festival nationwide dataset | `nationwide`                                            |    6 h |           1 | Yes           |
+| Festival active-date index  | `visitDate`                                             |    6 h |          32 | Yes           |
+| Charger region dataset      | normalized province/cityCounty/pageNo/numOfRows         | 30 min |          64 | Yes           |
+| Weather                     | KMA `nx`, `ny`, `baseDate`, `baseTime`, and `visitDate` | 10 min |         256 | Yes           |
 
 TTL은 관광지 metadata/접근성의 낮은 변동성, 축제 표준 dataset의 일 단위 성격, charger 기준
 dataset의 낮은 실시간성, KMA 발표 주기의 높은 변동성을 기준으로 차등 적용했다. cache는 session
@@ -119,13 +119,14 @@ count, cache hit/miss, single-flight join, timeout/retry, partial count, source 
 ## 7. Environment and deployment
 
 Streamable HTTP, stateless transport, Remote MCP, Docker production command는 변경하지 않았다.
-Production은 계속 외부 environment injection → `process.env`를 사용한다. Local만 Node 24 built-in
-`--env-file=.env`를 사용하는 `npm run start:local`을 제공한다. Docker local test는
+Production은 계속 외부 environment injection → `process.env`를 사용한다. Local은 `.env`가 있을 때만
+Node 24 built-in env-file 옵션을 사용하는 `npm run start:local`을 제공한다. Docker local test는
 `docker run --env-file .env ...`이며 `.env`는 image에 COPY되지 않는다.
 
-## 8. Synthetic benchmark interpretation
+## 8. 성능 수치 해석
 
-`npm run benchmark`는 실제 공공 API에 부하를 주지 않는 fake delay benchmark다. 한 실행의 예:
+개발 중 fake delay benchmark로 확인했던 대표 호출 구조는 다음과 같다. 테스트 코드는 저장소 정책에
+따라 현재 버전에 포함하지 않는다.
 
 | Scenario                       | Tool calls | Downstream calls | Observed p99 |
 | ------------------------------ | ---------: | ---------------: | -----------: |

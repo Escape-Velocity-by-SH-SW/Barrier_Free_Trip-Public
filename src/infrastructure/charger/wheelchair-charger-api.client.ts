@@ -190,7 +190,7 @@ function getResultCode(response: Record<string, unknown>): string | undefined {
   if (typeof resultCode === "string") {
     const normalizedCode = resultCode.trim();
 
-    if (normalizedCode.length == 0) {
+    if (normalizedCode.length === 0) {
       return undefined;
     }
 

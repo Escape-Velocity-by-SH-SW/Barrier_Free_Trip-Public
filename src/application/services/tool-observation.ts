@@ -40,7 +40,7 @@ export function createToolObservation(
   const log = options.log ?? writeStructuredLog;
   const now = options.now ?? (() => new Date());
   const telemetry = new InMemoryRequestTelemetry({ requestId, tool, log, now });
-  const context: OperationContext = { requestId, tool, telemetry };
+  const context: OperationContext = { requestId, tool, telemetry, logWriter: log };
   const startedAt = performance.now();
 
   log(createStructuredLogEvent("info", "tool.start", { requestId, tool }, now));

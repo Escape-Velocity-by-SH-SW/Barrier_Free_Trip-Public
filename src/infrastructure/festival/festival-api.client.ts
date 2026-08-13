@@ -21,6 +21,7 @@ export interface FestivalApiRequest {
 }
 
 const fullScanConcurrency = 4;
+const fullScanTimeoutMs = 10_000;
 
 export class FestivalApiClient {
   private readonly path: string;
@@ -51,10 +52,11 @@ export class FestivalApiClient {
   }
 
   async getAllFestivals(context?: OperationContext): Promise<FestivalResponseDto> {
+    const scanContext = createFullScanContext(context);
     const firstPage = await this.getFestivals({
       page: 1,
       perPage: this.fullScanPageSize,
-      ...(context !== undefined ? { context } : {}),
+      context: scanContext,
     });
     const totalCount = normalizeCount(firstPage.totalCount);
     const pageCount = Math.ceil(totalCount / this.fullScanPageSize);
@@ -70,7 +72,7 @@ export class FestivalApiClient {
         this.getFestivals({
           page,
           perPage: this.fullScanPageSize,
-          ...(context !== undefined ? { context } : {}),
+          context: scanContext,
         }),
     );
 
@@ -91,6 +93,16 @@ export class FestivalApiClient {
       rdnmadr: request.roadAddress,
     };
   }
+}
+
+function createFullScanContext(context: OperationContext | undefined): OperationContext {
+  return {
+    ...(context?.requestId !== undefined ? { requestId: context.requestId } : {}),
+    ...(context?.tool !== undefined ? { tool: context.tool } : {}),
+    ...(context?.telemetry !== undefined ? { telemetry: context.telemetry } : {}),
+    ...(context?.logWriter !== undefined ? { logWriter: context.logWriter } : {}),
+    deadlineAtMs: Date.now() + fullScanTimeoutMs,
+  };
 }
 
 function parseFestivalResponse(response: unknown): FestivalResponseDto {

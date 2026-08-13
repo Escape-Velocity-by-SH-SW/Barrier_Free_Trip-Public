@@ -5,7 +5,7 @@ import type {
   OperationContext,
 } from "../../application/ports/operation-context.js";
 
-export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+export type HttpMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
 
 export interface HttpClient {
   requestJson<TResponse = unknown>(options: HttpRequestOptions): Promise<TResponse>;
@@ -83,6 +83,7 @@ export class FetchHttpClient implements HttpClient {
   /** URL을 구성하고 타임아웃/abort를 연결한 뒤 실제 fetch를 실행하며, 실패 시 HttpRequestError로 정규화한다. */
   private async request(options: HttpRequestOptions): Promise<Response> {
     let attempt = 0;
+    const callerSignal = options.context?.signal ?? options.signal;
 
     while (true) {
       try {
@@ -95,7 +96,7 @@ export class FetchHttpClient implements HttpClient {
 
         attempt += 1;
         this.recordRetry(options, retryDelayMs);
-        await waitForRetry(retryDelayMs, options.context?.signal);
+        await waitForRetry(retryDelayMs, callerSignal);
       }
     }
   }
@@ -105,6 +106,12 @@ export class FetchHttpClient implements HttpClient {
     const abortController = new AbortController();
     const configuredTimeoutMs = options.timeoutMs ?? this.defaultTimeoutMs;
     const remainingMs = getRemainingMs(options.context);
+    if (remainingMs <= 0) {
+      throw new HttpRequestError({
+        kind: "TIMEOUT",
+        message: "HTTP request skipped because the operation deadline had passed.",
+      });
+    }
     const timeoutMs = Math.max(1, Math.min(configuredTimeoutMs, remainingMs));
     const startedAt = performance.now();
     let timedOut = false;
@@ -158,7 +165,8 @@ export class FetchHttpClient implements HttpClient {
     retryDelayMs: number,
     options: HttpRequestOptions,
   ): boolean {
-    if (attempt >= this.maxRetries || options.context?.signal?.aborted === true) {
+    const callerSignal = options.context?.signal ?? options.signal;
+    if (attempt >= this.maxRetries || callerSignal?.aborted === true) {
       return false;
     }
 
@@ -174,6 +182,11 @@ export class FetchHttpClient implements HttpClient {
     }
 
     if (getRemainingMs(options.context) <= retryDelayMs + 50) {
+      return false;
+    }
+
+    const method = options.method ?? "GET";
+    if (!new Set<HttpMethod>(["GET", "HEAD", "PUT", "DELETE", "OPTIONS"]).has(method)) {
       return false;
     }
 

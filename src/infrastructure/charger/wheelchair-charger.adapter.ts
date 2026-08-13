@@ -28,7 +28,12 @@ export class WheelChairChargerAdapter implements WheelchairChargerRepository {
     query: WheelchairChargerQuery,
     context?: OperationContext,
   ): Promise<ChargerSourceData[]> {
-    const key = `${normalizeRegion(query.province)}|${normalizeRegion(query.cityCounty)}`;
+    const key = [
+      normalizeRegion(query.province),
+      normalizeRegion(query.cityCounty),
+      query.pageNo ?? "default",
+      query.numOfRows ?? "default",
+    ].join("|");
     return this.loader.load(key, context, () => this.fetchByRegion(query, context));
   }
 

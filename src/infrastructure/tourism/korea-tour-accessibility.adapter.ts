@@ -37,22 +37,22 @@ export class KoreaTourAccessibilityAdapter implements TourismAccessibilityReposi
     return this.destinationLoader.load(key, context, async () => {
       const response = await this.client.searchKeyword(
         {
-          keyword,
+          keyword: key,
           contentTypeId: touristAttractionContentTypeId,
           arrange: "A",
         },
         context,
       );
-      return mapSearchKeywordResponseToDestinationCandidates(response, keyword);
+      return mapSearchKeywordResponseToDestinationCandidates(response, key);
     });
   }
 
   getAccessibility(
     contentId: string,
-    contentTypeId: string,
+    _contentTypeId: string,
     context?: OperationContext,
   ): Promise<AccessibilitySourceData> {
-    const key = `${contentId.trim()}|${contentTypeId.trim()}`;
+    const key = contentId.trim();
     return this.accessibilityLoader.load(key, context, async () => {
       const response = await this.client.getDetailWithTour({ contentId }, context);
       return mapDetailWithTourResponseToAccessibilitySourceData(response);

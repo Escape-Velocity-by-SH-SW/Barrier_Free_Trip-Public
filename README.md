@@ -329,14 +329,12 @@ docker run --rm -p 3000:3000 --env-file .env bopok-mcp
 
 `.env`와 `.env.*`는 `.gitignore`와 `.dockerignore` 모두에서 제외됩니다.
 
-검증과 synthetic benchmark:
+기본 정적 검증:
 
 ```bash
 npm run typecheck
 npm run lint
-npm test
 npm run build
-npm run benchmark
 ```
 
 ## Kakao Tools Widget

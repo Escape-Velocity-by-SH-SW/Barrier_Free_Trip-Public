@@ -37,4 +37,10 @@ export interface OperationContext {
   readonly signal?: AbortSignal;
   readonly telemetry?: RequestTelemetry;
   readonly deadlineAtMs?: number;
+  readonly logWriter?: (event: {
+    readonly timestamp: string;
+    readonly level: "info" | "warn" | "error";
+    readonly event: string;
+    readonly [key: string]: unknown;
+  }) => void;
 }

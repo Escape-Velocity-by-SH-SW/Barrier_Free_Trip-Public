@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { createWriteStream, mkdirSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 const projectRoot = process.cwd();
@@ -8,7 +8,11 @@ const logFile = resolve(logsDirectory, "mcp.ndjson");
 mkdirSync(logsDirectory, { recursive: true });
 
 const fileStream = createWriteStream(logFile, { flags: "a" });
-const server = spawn(process.execPath, ["--env-file=.env", "dist/http-main.js"], {
+const nodeArgs = [
+  ...(existsSync(resolve(projectRoot, ".env")) ? ["--env-file=.env"] : []),
+  "dist/http-main.js",
+];
+const server = spawn(process.execPath, nodeArgs, {
   cwd: projectRoot,
   env: process.env,
   stdio: ["inherit", "inherit", "pipe"],
@@ -21,6 +25,12 @@ server.stderr.on("data", (chunk) => {
 
 server.on("error", (error) => {
   process.stderr.write(`로컬 관측 서버를 시작하지 못했습니다: ${error.message}\n`);
+  process.exitCode = 1;
+});
+
+fileStream.on("error", (error) => {
+  process.stderr.write(`관측 로그를 기록하지 못했습니다: ${error.message}\n`);
+  process.exitCode = 1;
 });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
@@ -29,6 +39,6 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 
 server.on("exit", (code, signal) => {
   fileStream.end(() => {
-    process.exitCode = code ?? (signal === null ? 1 : 0);
+    process.exitCode ??= code ?? (signal === null ? 1 : 0);
   });
 });

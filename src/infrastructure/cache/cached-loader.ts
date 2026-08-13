@@ -46,7 +46,9 @@ export class CachedLoader<TKey, TValue> {
     }
 
     if (this.inFlight.size >= this.maxInFlight) {
-      return factory();
+      const value = await factory();
+      this.writeCache(key, value, context);
+      return value;
     }
 
     const promise = factory()

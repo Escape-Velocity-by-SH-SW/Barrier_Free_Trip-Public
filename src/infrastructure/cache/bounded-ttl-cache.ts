@@ -15,8 +15,15 @@ export class BoundedTtlCache<TKey, TValue> {
   private readonly clock: () => number;
 
   constructor(private readonly options: BoundedTtlCacheOptions) {
-    if (options.ttlMs <= 0 || options.maxEntries <= 0) {
-      throw new Error("Cache ttlMs and maxEntries must be positive.");
+    if (
+      !Number.isFinite(options.ttlMs) ||
+      options.ttlMs <= 0 ||
+      !Number.isSafeInteger(options.maxEntries) ||
+      options.maxEntries <= 0
+    ) {
+      throw new Error(
+        "Cache ttlMs must be finite and positive; maxEntries must be a positive safe integer.",
+      );
     }
     this.clock = options.clock ?? Date.now;
   }

@@ -260,12 +260,10 @@ src/mcp/tools/*.tool.ts의 Schema
 
 ## Tests
 
-- Unit: 정책, 거리, 날짜, 격자 변환
-- Integration: Adapter와 Mapper, fixture 기반
-- Contract: Tool Schema
-- E2E: MCP Tool 전체 흐름
-
-기본 테스트에서 실제 공공 API를 호출하지 않는다.
+- 테스트 코드는 저장소에 커밋하지 않는다.
+- `*.test.*`, `*.spec.*`, `__tests__/`는 Git 추적 대상에서 제외한다.
+- 검증이 필요하면 `/tmp` 또는 Git에서 제외된 로컬 파일에서 수행하고 완료 후 제거한다.
+- 임시 검증에서도 실제 공공 API를 호출하지 않는다.
 
 ## Agent Workflow
 
@@ -279,7 +277,7 @@ src/mcp/tools/*.tool.ts의 Schema
 작업 후:
 
 1. 타입 검사
-2. 관련 테스트
+2. 커밋되지 않는 임시 검증
 3. 린트
 4. 빌드
 5. 변경 내용과 남은 위험 요약
@@ -287,7 +285,6 @@ src/mcp/tools/*.tool.ts의 Schema
 ```bash
 npm run typecheck
 npm run lint
-npm test
 npm run build
 ```
 

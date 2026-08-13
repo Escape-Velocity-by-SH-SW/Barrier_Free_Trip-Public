@@ -29,7 +29,7 @@ nationwide page wave 최대 3초 × 여러 wave
 ### 2) 적용한 해결 방법
 
 - `performanceConfig.overallDeadlineMs = 2_700`
-- 종합 service의 `withDeadline()`이 전체 종료 시각과 취소 신호를 담은 `OperationContext` 생성
+- 종합 service의 `runWithDeadline()`이 전체 종료 시각과 취소 신호를 담은 `OperationContext` 생성
 - 개별 네 Tool service도 `runWithDeadline()`으로 같은 2.7초 정책 적용
 - Repository port의 optional context를 adapter와 API client까지 전달
 - `FetchHttpClient`가 HTTP 호출 한 번의 1,500ms 제한과 전체 남은 시간 중 더 짧은 값 사용
@@ -62,7 +62,7 @@ remaining = 500ms
 ```text
 VisitAssessmentService.assess/assessBatch
 ↓
-withDeadline
+runWithDeadline
 ├─ deadlineAtMs = Date.now() + 2700
 ├─ AbortController 생성
 └─ 2700ms timer
@@ -101,7 +101,7 @@ HTTP 한 번의 제한만 줄이면 1,500ms보다 느리지만 정상인 응답�
 - Per-request 1,500ms 초과: `HttpRequestError(kind="TIMEOUT")`
 - Overall 2.7초 초과: context signal abort, 진행 fetch 중단
 - Retry 대기 중 abort: `waitForRetry()`가 timer/listener 정리 후 reject
-- Remaining 0: 다음 HTTP timeout은 최소 1ms이고 signal도 이미/곧 abort
+- Remaining 0: 외부 요청을 시작하지 않고 즉시 `TIMEOUT`으로 종료
 - Adapter가 context를 전달하지 않음: 이번 diff에서 모든 관련 port/client 경로를 함께 변경해 방지
 
 ### 8) 테스트
@@ -114,7 +114,7 @@ HTTP 한 번의 제한만 줄이면 1,500ms보다 느리지만 정상인 응답�
 ### 9) 내가 반드시 이해해야 할 코드
 
 - 파일: `src/application/services/visit-assessment.service.ts`
-  - 함수: `withDeadline`
+  - 함수: `runWithDeadline`
   - 이유: 종합 요청의 전체 종료 시간과 시간 초과 기록이 시작되는 곳이다.
 - 파일: `src/application/services/deadline.ts`
   - 함수: `runWithDeadline`

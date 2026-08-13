@@ -47,10 +47,10 @@ export function createStructuredLogEvent(
   now: () => Date = () => new Date(),
 ): StructuredLogEvent {
   return {
+    ...fields,
     timestamp: now().toISOString(),
     level,
     event,
-    ...fields,
   };
 }
 
@@ -72,7 +72,10 @@ export function toSafeErrorFields(error: unknown): { errorName: string; errorMes
 export function sanitizeLogMessage(message: string): string {
   return message
     .replaceAll(/https?:\/\/\S+/gi, "[REDACTED_URL]")
-    .replaceAll(/\b(serviceKey|apiKey|authorization)\s*[=:]\s*[^\s&,]+/gi, "$1=[REDACTED]")
+    .replaceAll(
+      /["']?\b(serviceKey|apiKey|authorization|accessToken|clientSecret)\b["']?\s*[=:]\s*(?:"[^"]*"|'[^']*'|[^\s&,}]+)/gi,
+      "$1=[REDACTED]",
+    )
     .replaceAll(/\bBearer\s+\S+/gi, "Bearer [REDACTED]")
     .slice(0, 300);
 }

@@ -14,10 +14,7 @@ export async function mapWithConcurrency<TItem, TResult>(
     while (nextIndex < items.length) {
       const index = nextIndex;
       nextIndex += 1;
-      const item = items[index];
-      if (item !== undefined) {
-        results[index] = await mapper(item, index);
-      }
+      results[index] = await mapper(items[index] as TItem, index);
     }
   }
 

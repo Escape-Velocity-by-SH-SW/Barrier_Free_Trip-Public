@@ -128,26 +128,33 @@ async function tailLogs(logFile) {
   await ensureLogFile(logFile);
   let offset = (await stat(logFile)).size;
   let remainder = "";
+  let processing = false;
   process.stdout.write("새 로그를 기다립니다. 종료: Ctrl+C\n");
 
   const onChange = async () => {
-    const size = (await stat(logFile)).size;
-    if (size < offset) {
-      offset = 0;
-      remainder = "";
-    }
-    if (size === offset) return;
+    if (processing) return;
+    processing = true;
+    try {
+      const size = (await stat(logFile)).size;
+      if (size < offset) {
+        offset = 0;
+        remainder = "";
+      }
+      if (size === offset) return;
 
-    const chunks = [];
-    for await (const chunk of createReadStream(logFile, { start: offset, end: size - 1 })) {
-      chunks.push(chunk);
-    }
-    offset = size;
-    const textChunk = remainder + Buffer.concat(chunks).toString("utf8");
-    const lines = textChunk.split(/\r?\n/);
-    remainder = lines.pop() ?? "";
-    for (const event of parseLogLines(lines.join("\n"))) {
-      process.stdout.write(`${formatEvent(event)}\n`);
+      const chunks = [];
+      for await (const chunk of createReadStream(logFile, { start: offset, end: size - 1 })) {
+        chunks.push(chunk);
+      }
+      offset = size;
+      const textChunk = remainder + Buffer.concat(chunks).toString("utf8");
+      const lines = textChunk.split(/\r?\n/);
+      remainder = lines.pop() ?? "";
+      for (const event of parseLogLines(lines.join("\n"))) {
+        process.stdout.write(`${formatEvent(event)}\n`);
+      }
+    } finally {
+      processing = false;
     }
   };
 

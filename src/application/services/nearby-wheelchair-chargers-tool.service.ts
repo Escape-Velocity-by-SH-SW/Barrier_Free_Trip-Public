@@ -41,16 +41,21 @@ export type NearbyWheelchairChargersToolResult =
     };
 
 export class NearbyWheelchairChargersToolService {
+  private readonly overallDeadlineMs: number;
+
   constructor(
     private readonly destinationResolver: DestinationResolver,
     private readonly chargerService: ChargerService,
-  ) {}
+    options: { readonly overallDeadlineMs?: number } = {},
+  ) {
+    this.overallDeadlineMs = options.overallDeadlineMs ?? performanceConfig.overallDeadlineMs;
+  }
 
   async execute(
     request: NearbyWheelchairChargersToolRequest,
   ): Promise<NearbyWheelchairChargersToolResult> {
     return runWithDeadline(
-      performanceConfig.overallDeadlineMs,
+      this.overallDeadlineMs,
       (context) => this.executeWithinDeadline(request, context),
       request.context,
     );

@@ -31,10 +31,6 @@ export class FestivalRiskService {
     try {
       const festivals = await this.repository.findNearby(
         {
-          destinationName: request.destination.name,
-          ...(request.destination.address !== undefined
-            ? { address: request.destination.address }
-            : {}),
           coordinates: request.destination.coordinates,
           visitDate: request.visitDate,
           radiusKm,
