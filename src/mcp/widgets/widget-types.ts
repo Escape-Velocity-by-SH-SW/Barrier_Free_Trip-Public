@@ -102,7 +102,18 @@ export interface CardWidgetRoot {
   readonly key?: string;
 }
 
-export type ChatKitWidgetRoot = CardWidgetRoot;
+export interface BasicWidgetRoot {
+  readonly type: "Basic";
+  readonly children: ChatKitWidgetRoot[];
+  readonly gap?: number | string;
+  readonly padding?: number | string;
+  readonly align?: "start" | "center" | "end" | "baseline" | "stretch";
+  readonly justify?: "start" | "center" | "end" | "between" | "around" | "evenly" | "stretch";
+  readonly direction?: "row" | "col";
+  readonly key?: string;
+}
+
+export type ChatKitWidgetRoot = CardWidgetRoot | BasicWidgetRoot;
 
 export interface KakaoWidgetEnvelope {
   readonly widget: ChatKitWidgetRoot;

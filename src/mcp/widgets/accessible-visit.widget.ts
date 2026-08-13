@@ -94,7 +94,10 @@ export function buildAccessibleVisitWidgetEnvelope(
   assessment: AccessibleVisitAssessment,
 ): KakaoWidgetEnvelope {
   return {
-    widget: buildVisitSummary(assessment),
+    widget: {
+      type: "Basic",
+      children: [buildVisitSummary(assessment), buildVisitDetails(assessment)],
+    },
     copy_text: buildAccessibleVisitCopyText(assessment),
   };
 }
@@ -122,7 +125,6 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
     size: "lg",
     padding: 16,
     key: "accessible-visit-summary",
-    collapsed: true,
     children,
   };
 }
@@ -130,9 +132,10 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
 export function buildVisitDetails(assessment: AccessibleVisitAssessment): CardWidgetRoot {
   return {
     type: "Card",
-    size: "sm",
+    size: "lg",
     padding: 16,
     key: "accessible-visit-details",
+    collapsed: true,
     children: [
       title("상세 정보", "md"),
       divider(),
