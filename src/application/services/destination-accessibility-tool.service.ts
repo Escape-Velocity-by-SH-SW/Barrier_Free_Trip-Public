@@ -7,6 +7,9 @@ import type {
   DestinationCandidate,
   DestinationResolutionResult,
 } from "../../domain/destination.js";
+import type { OperationContext } from "../ports/operation-context.js";
+import { performanceConfig } from "./performance-config.js";
+import { runWithDeadline } from "./deadline.js";
 
 export interface DestinationAccessibilityToolRequest {
   destination?: string | undefined;
@@ -14,6 +17,7 @@ export interface DestinationAccessibilityToolRequest {
   contentId?: string | undefined;
   contentTypeId?: string | undefined;
   travelerType?: string | undefined;
+  context?: OperationContext;
 }
 
 export interface DestinationCandidateSummary {
@@ -52,12 +56,23 @@ export class DestinationAccessibilityToolService {
   async execute(
     request: DestinationAccessibilityToolRequest,
   ): Promise<DestinationAccessibilityToolResult> {
+    return runWithDeadline(
+      performanceConfig.overallDeadlineMs,
+      (context) => this.executeWithinDeadline(request, context),
+      request.context,
+    );
+  }
+
+  private async executeWithinDeadline(
+    request: DestinationAccessibilityToolRequest,
+    context: OperationContext,
+  ): Promise<DestinationAccessibilityToolResult> {
     const contentId = normalizeText(request.contentId);
     const destinationName = getDestinationName(request);
     const travelerType = normalizeTravelerType(request.travelerType);
 
     if (contentId !== undefined) {
-      return this.executeByContentId(request, contentId, destinationName, travelerType);
+      return this.executeByContentId(request, contentId, destinationName, travelerType, context);
     }
 
     if (destinationName === undefined) {
@@ -68,8 +83,8 @@ export class DestinationAccessibilityToolService {
       );
     }
 
-    const resolution = await this.destinationResolver.resolve(destinationName);
-    return this.executeResolvedDestination(resolution, travelerType, "name");
+    const resolution = await this.destinationResolver.resolve(destinationName, context);
+    return this.executeResolvedDestination(resolution, travelerType, "name", context);
   }
 
   private async executeByContentId(
@@ -77,18 +92,22 @@ export class DestinationAccessibilityToolService {
     contentId: string,
     destinationName: string | undefined,
     travelerType: TravelerType | undefined,
+    context: OperationContext,
   ): Promise<DestinationAccessibilityToolResult> {
     if (destinationName !== undefined) {
-      const resolution = await this.destinationResolver.resolveByContentId({
-        contentId,
-        destinationName,
-      });
+      const resolution = await this.destinationResolver.resolveByContentId(
+        {
+          contentId,
+          destinationName,
+        },
+        context,
+      );
 
       if (resolution.status !== "RESOLVED") {
         return createResolutionFailureResult(resolution, travelerType);
       }
 
-      return this.executeResolvedDestination(resolution, travelerType, "contentId");
+      return this.executeResolvedDestination(resolution, travelerType, "contentId", context);
     }
 
     const contentTypeId = normalizeText(request.contentTypeId);
@@ -96,6 +115,7 @@ export class DestinationAccessibilityToolService {
       contentId,
       ...(contentTypeId !== undefined ? { contentTypeId } : {}),
       ...(travelerType !== undefined ? { travelerType } : {}),
+      context,
     });
 
     return {
@@ -115,6 +135,7 @@ export class DestinationAccessibilityToolService {
     resolution: DestinationResolutionResult,
     travelerType: TravelerType | undefined,
     mode: "name" | "contentId",
+    context: OperationContext,
   ): Promise<DestinationAccessibilityToolResult> {
     if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
       return createResolutionFailureResult(resolution, travelerType);
@@ -123,6 +144,7 @@ export class DestinationAccessibilityToolService {
     const result = await this.accessibilityService.getAccessibility({
       destination: resolution.destination,
       ...(travelerType !== undefined ? { travelerType } : {}),
+      context,
     });
 
     return {

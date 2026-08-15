@@ -7,7 +7,11 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { createContainer } from "./bootstrap/create-container.js";
 import { createServer } from "./bootstrap/create-server.js";
 import { registerTools } from "./bootstrap/register-tools.js";
-import { toLoggableError } from "./application/services/logging.js";
+import {
+  createStructuredLogEvent,
+  toSafeErrorFields,
+  writeStructuredLog,
+} from "./application/services/logging.js";
 
 const defaultPort = 3000;
 const mcpPath = "/mcp";
@@ -25,15 +29,19 @@ function main(): void {
   httpServer.headersTimeout = headersTimeoutMs;
 
   httpServer.on("error", (error) => {
-    console.error("[accessible-visit-mcp] streamable http server error", toLoggableError(error));
+    writeStructuredLog(createStructuredLogEvent("error", "server.error", toSafeErrorFields(error)));
     process.exitCode = 1;
-    process.exit();
   });
 
   registerShutdownHandlers(httpServer);
 
   httpServer.listen(port, () => {
-    console.error(`[accessible-visit-mcp] streamable http server started on port ${port}`);
+    writeStructuredLog(
+      createStructuredLogEvent("info", "server.started", {
+        transport: "streamable-http",
+        port,
+      }),
+    );
   });
 }
 
@@ -66,7 +74,9 @@ async function handleHttpRequest(
     await server.connect(transport as unknown as Transport);
     await transport.handleRequest(request, response);
   } catch (error) {
-    console.error("[accessible-visit-mcp] streamable http request error", toLoggableError(error));
+    writeStructuredLog(
+      createStructuredLogEvent("error", "server.request.error", toSafeErrorFields(error)),
+    );
 
     if (!response.headersSent) {
       writeJsonResponse(response, 500, {
@@ -95,14 +105,16 @@ function registerShutdownHandlers(httpServer: ReturnType<typeof createHttpServer
     }
 
     shuttingDown = true;
-    console.error(`[accessible-visit-mcp] received ${signal}, closing http server`);
+    writeStructuredLog(createStructuredLogEvent("info", "server.shutdown", { signal }));
     httpServer.close((error) => {
       if (error !== undefined) {
-        console.error("[accessible-visit-mcp] http server shutdown error", toLoggableError(error));
+        writeStructuredLog(
+          createStructuredLogEvent("error", "server.shutdown.error", toSafeErrorFields(error)),
+        );
         process.exitCode = 1;
       }
 
-      process.exit();
+      if (error === undefined) process.exitCode ??= 0;
     });
   };
 
@@ -136,9 +148,8 @@ function writeJsonResponse(response: ServerResponse, statusCode: number, body: u
 try {
   main();
 } catch (error) {
-  console.error(
-    "[accessible-visit-mcp] fatal streamable http startup error",
-    toLoggableError(error),
+  writeStructuredLog(
+    createStructuredLogEvent("error", "server.startup.error", toSafeErrorFields(error)),
   );
   process.exitCode = 1;
 }

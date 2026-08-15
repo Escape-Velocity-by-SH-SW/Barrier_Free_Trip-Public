@@ -3,6 +3,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createContainer } from "./bootstrap/create-container.js";
 import { createServer } from "./bootstrap/create-server.js";
 import { registerTools } from "./bootstrap/register-tools.js";
+import {
+  createStructuredLogEvent,
+  toSafeErrorFields,
+  writeStructuredLog,
+} from "./application/services/logging.js";
 
 async function main(): Promise<void> {
   const container = createContainer();
@@ -13,14 +18,12 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error("[accessible-visit-mcp] stdio server started");
+  writeStructuredLog(createStructuredLogEvent("info", "server.started", { transport: "stdio" }));
 }
 
 main().catch((error: unknown) => {
-  if (error instanceof Error) {
-    console.error("[accessible-visit-mcp] fatal startup error", error);
-  } else {
-    console.error("[accessible-visit-mcp] fatal startup error", String(error));
-  }
+  writeStructuredLog(
+    createStructuredLogEvent("error", "server.startup.error", toSafeErrorFields(error)),
+  );
   process.exitCode = 1;
 });

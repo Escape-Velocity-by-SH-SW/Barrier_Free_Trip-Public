@@ -1,10 +1,8 @@
 import { HttpRequestError } from "../http/http-error.js";
 import type { HttpClient } from "../http/http-client.js";
 import type { HttpQueryParams } from "../http/url.js";
-import type {
-  DetailWithTourResponseDto,
-  SearchKeywordResponseDto,
-} from "./korea-tour-api.dto.js";
+import type { OperationContext } from "../../application/ports/operation-context.js";
+import type { DetailWithTourResponseDto, SearchKeywordResponseDto } from "./korea-tour-api.dto.js";
 
 const tourApiSuccessResultCode = "0000";
 
@@ -51,22 +49,32 @@ export class KoreaTourApiClient {
     this.defaultNumOfRows = options.defaultNumOfRows ?? 10;
   }
 
-  async searchKeyword(request: SearchKeywordRequest): Promise<SearchKeywordResponseDto> {
+  async searchKeyword(
+    request: SearchKeywordRequest,
+    context?: OperationContext,
+  ): Promise<SearchKeywordResponseDto> {
     const response = await this.httpClient.requestJson<unknown>({
       path: "/searchKeyword2",
       query: this.createSearchKeywordQuery(request),
+      source: "tourism",
+      ...(context !== undefined ? { context } : {}),
     });
 
     return parseSearchKeywordResponse(response);
   }
 
-  async getDetailWithTour(request: DetailWithTourRequest): Promise<DetailWithTourResponseDto> {
+  async getDetailWithTour(
+    request: DetailWithTourRequest,
+    context?: OperationContext,
+  ): Promise<DetailWithTourResponseDto> {
     const response = await this.httpClient.requestJson<unknown>({
       path: "/detailWithTour2",
       query: {
         ...this.createCommonQuery(),
         contentId: request.contentId,
       },
+      source: "accessibility",
+      ...(context !== undefined ? { context } : {}),
     });
 
     return parseDetailWithTourResponse(response);

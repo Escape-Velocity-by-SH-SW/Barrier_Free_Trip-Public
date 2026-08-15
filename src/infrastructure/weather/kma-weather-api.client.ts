@@ -1,5 +1,6 @@
 import type { HttpClient, HttpRequestOptions } from "../http/http-client.js";
 import { HttpRequestError } from "../http/http-error.js";
+import type { OperationContext } from "../../application/ports/operation-context.js";
 import type { KmaForecastItemDto, KmaForecastResponseDto } from "./kma-weather.dto.js";
 
 /** KMA 단기예보 API 호출에 필요한 고정 설정을 담는다. */
@@ -18,6 +19,7 @@ export interface KmaForecastRequest {
   ny: number;
   numOfRows?: number;
   signal?: AbortSignal;
+  context?: OperationContext;
 }
 
 type KmaForecastPageRequest = KmaForecastRequest & {
@@ -161,6 +163,7 @@ function buildForecastRequestOptions(
       ny: request.ny,
     },
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
+    ...(request.context !== undefined ? { context: request.context } : {}),
   };
 }
 

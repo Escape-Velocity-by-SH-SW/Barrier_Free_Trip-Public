@@ -228,7 +228,8 @@ UNKNOWN
 
 ```typescript
 {
-  destination: string;
+  destination?: string;    // 단일 장소
+  destinations?: string[]; // 여러 후보, 최대 5개
   visitDate: string;
   travelerType: TravelerType;
   radiusKm?: number;
@@ -256,6 +257,87 @@ ACCESSIBLE_WITH_CAUTION
 CHECK_REQUIRED
 INSUFFICIENT_DATA
 ```
+
+## 본선 운영 성능 설계
+
+처음 학습할 때는 [가장 쉬운 성능 개선 가이드](./docs/performance/00-easy-start.md)부터 읽고,
+필요한 주제는 [`docs/performance/`](./docs/performance/README.md)에서 찾아볼 수 있습니다.
+
+`assess_accessible_visit`는 기존 단일 `destination` 입력을 유지하며, 여러 후보 비교에는
+`destinations`를 사용합니다. 두 필드는 동시에 보낼 수 없고 batch는 최대 5개입니다. 후보명은
+앞뒤/연속 공백만 정리한 뒤 중복 제거하며, 후보 처리는 최대 2개씩 실행됩니다.
+
+프로세스 메모리 cache는 TTL과 최대 entry를 가진 best-effort LRU입니다. 관광지 검색,
+접근성 상세, 날씨 격자/발표시각, 지역 충전소, 전국 축제 dataset을 cache하며 동일 key의 동시
+miss는 하나의 진행 중 요청을 공유합니다. cache가 비어 있거나 컨테이너/replica별로 공유되지
+않아도 항상 기존 외부 API 경로로 조회합니다.
+
+종합 Tool은 2.7초 전체 deadline을 사용합니다. 후보 또는 개별 source가 실패/timeout이어도 이미
+확보한 결과를 유지하며, 새 retry는 남은 deadline이 충분할 때만 429, 502, 503, 504, timeout,
+일시적 network error에 대해 최대 1회 수행합니다.
+
+## 실행 환경
+
+Production은 기존과 동일하게 컨테이너 외부에서 환경변수를 주입하고 애플리케이션은
+`process.env`만 읽습니다. `.env` loader dependency나 image 내부 `.env`는 사용하지 않습니다.
+
+로컬 실행:
+
+```bash
+npm ci
+npm run build
+npm run start:local
+```
+
+Node 24의 `--env-file=.env`가 `.env`를 `process.env`로 전달합니다. 운영 실행은 계속
+`npm run start:http`입니다.
+
+### 로컬에서 요청 흐름 확인하기
+
+다음 명령은 빌드 후 HTTP 서버를 실행하고, stderr 로그를 터미널과
+`logs/mcp.ndjson`에 함께 남깁니다. 애플리케이션 자체는 파일을 열지 않습니다.
+
+```bash
+npm run dev:observe
+```
+
+다른 터미널에서는 필요한 형태로 로그를 볼 수 있습니다.
+
+```bash
+npm run logs                         # 최근 Tool 실행 요약
+npm run logs -- tail                 # 새 로그 실시간 확인
+npm run logs -- errors               # 오류, 재시도, timeout, 부분 결과
+npm run logs -- weather              # 날씨 source만 확인
+npm run logs -- festival             # 축제 source만 확인
+npm run logs -- charger              # 충전소 source만 확인
+npm run logs -- tourism              # 관광 source만 확인
+npm run logs -- request <requestId>  # 요청 하나의 전체 흐름
+npm run logs -- clear                # 로컬 로그 비우기
+npm run logs -- help                 # 명령 도움말
+```
+
+각 Tool 호출은 하나의 `requestId`를 사용합니다. `tool.start`부터 cache, 외부 API,
+retry, deadline, `tool.summary`까지 같은 ID로 연결되므로 특정 요청만 쉽게 추적할 수 있습니다.
+로그에는 API key, 전체 URL/query, 원본 API 응답, 사용자 입력 전체를 넣지 않습니다.
+
+운영 환경과 유사한 로컬 Docker 실행:
+
+```bash
+docker build -t bopok-mcp .
+docker run --rm -p 3000:3000 --env-file .env bopok-mcp
+```
+
+`.env`와 `.env.*`는 `.gitignore`와 `.dockerignore` 모두에서 제외됩니다.
+
+기본 정적 검증:
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
+
+## Kakao Tools Widget
 
 단일 관광지 조회가 성공하면 Kakao Tools용 ChatKit Widget도 함께 제공합니다. 기존 Domain 결과는
 `structuredContent`에 유지하고, Widget과 공유용 Markdown은 `content.text`에 JSON Envelope로
@@ -341,7 +423,6 @@ FESTIVAL_API_SERVICE_KEY
 
 ```text
 FESTIVAL_API_FULL_SCAN_PAGE_SIZE
-FESTIVAL_API_FOCUSED_PER_PAGE
 PORT
 ```
 
@@ -352,7 +433,8 @@ PORT
 않습니다.
 
 ```text
-API_TIMEOUT_MS=3000
+EXTERNAL_API_TIMEOUT_MS=1500
+MCP_OVERALL_DEADLINE_MS=2700
 WHEELCHAIR_CHARGER_API_ENDPOINT_PATH=/tn_pubr_public_electr_whlchairhgh_spdchrgr_api
 KMA_WEATHER_API_ENDPOINT_PATH=/getVilageFcst
 TOUR_API_MOBILE_OS=ETC

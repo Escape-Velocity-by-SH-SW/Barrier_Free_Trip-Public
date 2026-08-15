@@ -8,9 +8,11 @@ import type {
   NearbyWheelchairChargerResult,
 } from "../../domain/charger.js";
 import type { Coordinates, Destination } from "../../domain/destination.js";
+import type { OperationContext } from "../ports/operation-context.js";
 
 export interface ChargerServiceRequest {
   destination: Destination;
+  context?: OperationContext;
 }
 
 type RegionParseResult =
@@ -31,9 +33,7 @@ const earthRadiusKm = 6371;
 export class ChargerService {
   constructor(private readonly repository: WheelchairChargerRepository) {}
 
-  async findNearbyChargers(
-    request: ChargerServiceRequest,
-  ): Promise<NearbyWheelchairChargerResult> {
+  async findNearbyChargers(request: ChargerServiceRequest): Promise<NearbyWheelchairChargerResult> {
     const region = parseRegion(request.destination.address);
 
     if (region.status === "EMPTY") {
@@ -51,10 +51,13 @@ export class ChargerService {
     }
 
     try {
-      const chargers = await this.repository.findByRegion({
-        province: region.province,
-        cityCounty: region.cityCounty,
-      });
+      const chargers = await this.repository.findByRegion(
+        {
+          province: region.province,
+          cityCounty: region.cityCounty,
+        },
+        request.context,
+      );
       return createResultFromChargers(request, chargers);
     } catch (error) {
       return createFailedResult(request, getLookupFailureCaution(error));
@@ -63,10 +66,7 @@ export class ChargerService {
 }
 
 function getLookupFailureCaution(error: unknown): string {
-  if (
-    error instanceof WheelchairChargerRepositoryError &&
-    error.userMessage !== undefined
-  ) {
+  if (error instanceof WheelchairChargerRepositoryError && error.userMessage !== undefined) {
     return error.userMessage;
   }
 
