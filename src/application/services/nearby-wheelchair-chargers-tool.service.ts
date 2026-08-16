@@ -9,6 +9,7 @@ import type {
 
 export interface NearbyWheelchairChargersToolRequest {
   destination: string;
+  radiusKm?: number;
 }
 
 export interface DestinationCandidateSummary {
@@ -67,6 +68,7 @@ export class NearbyWheelchairChargersToolService {
       status: "SUCCESS",
       result: await this.chargerService.findNearbyChargers({
         destination: resolution.destination,
+        ...(request.radiusKm !== undefined ? { radiusKm: request.radiusKm } : {}),
       }),
     };
   }
