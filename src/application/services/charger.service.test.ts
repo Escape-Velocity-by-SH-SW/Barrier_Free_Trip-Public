@@ -47,6 +47,49 @@ describe("ChargerService.findNearbyChargers", () => {
     expect(result.chargers.map((charger) => charger.name)).toEqual(["가까운 충전소"]);
   });
 
+  it("반올림 전 실제 거리를 기준으로 반경 경계를 판정한다", async () => {
+    // 두 충전소 모두 반올림하면 3.00km로 동일하지만, 실제 거리는 각각 3.004km / 2.996km다.
+    const justOutsideRadius: ChargerSourceData = {
+      name: "경계 밖 충전소",
+      latitude: 37.5270156210418, // 실제 거리 약 3.004km (반올림 시 3.00km)
+      longitude: 127.0,
+    };
+    const justInsideRadius: ChargerSourceData = {
+      name: "경계 안 충전소",
+      latitude: 37.52694367531332, // 실제 거리 약 2.996km (반올림 시 3.00km)
+      longitude: 127.0,
+    };
+    const service = new ChargerService(
+      createRepository([justOutsideRadius, justInsideRadius]),
+    );
+
+    const result = await service.findNearbyChargers({ destination, radiusKm: 3 });
+
+    expect(result.chargers.map((charger) => charger.name)).toEqual(["경계 안 충전소"]);
+  });
+
+  it("반올림하면 거리가 같아지는 충전소도 실제 거리순으로 정렬한다", async () => {
+    // 두 충전소 모두 반올림하면 1.00km로 동일하지만, 실제 거리는 각각 1.001km / 1.004km다.
+    const closer: ChargerSourceData = {
+      name: "더 가까운 충전소",
+      latitude: 37.50900220927525,
+      longitude: 127.0,
+    };
+    const farther: ChargerSourceData = {
+      name: "더 먼 충전소",
+      latitude: 37.50902918892342,
+      longitude: 127.0,
+    };
+    const service = new ChargerService(createRepository([farther, closer]));
+
+    const result = await service.findNearbyChargers({ destination, radiusKm: 3 });
+
+    expect(result.chargers.map((charger) => charger.name)).toEqual([
+      "더 가까운 충전소",
+      "더 먼 충전소",
+    ]);
+  });
+
   it("반경 필터 후 결과가 없으면 NO_DATA를 반환한다", async () => {
     const farCharger: ChargerSourceData = {
       name: "먼 충전소",
@@ -116,6 +159,20 @@ describe("ChargerService.findNearbyChargers", () => {
     for (const charger of result.chargers) {
       expect(charger.dataFreshness).toBe("UNKNOWN");
     }
+  });
+
+  it("달력상 존재하지 않는 날짜(예: 2월 30일)는 UNKNOWN으로 평가한다", async () => {
+    const invalidCalendarDate: ChargerSourceData = {
+      name: "잘못된 기준일 충전소",
+      latitude: 37.51,
+      longitude: 127.0,
+      referenceDate: "2025-02-30",
+    };
+    const service = new ChargerService(createRepository([invalidCalendarDate]));
+
+    const result = await service.findNearbyChargers({ destination, radiusKm: 3 });
+
+    expect(result.chargers[0]?.dataFreshness).toBe("UNKNOWN");
   });
 
   it("realtimeAvailability는 항상 UNKNOWN으로 유지된다", async () => {

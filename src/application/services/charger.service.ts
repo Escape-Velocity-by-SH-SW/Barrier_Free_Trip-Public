@@ -87,11 +87,12 @@ function createResultFromChargers(
   chargers: ChargerSourceData[],
 ): NearbyWheelchairChargerResult {
   const nearbyChargers = chargers
-    .map((charger) => toChargerSummary(charger, request.destination.coordinates))
-    .filter((charger): charger is ChargerSummary => charger !== undefined)
-    .filter((charger) => charger.distanceKm <= radiusKm)
+    .map((charger) => toChargerCandidate(charger, request.destination.coordinates))
+    .filter((candidate): candidate is ChargerCandidate => candidate !== undefined)
+    .filter((candidate) => candidate.distanceKm <= radiusKm)
     .sort((left, right) => left.distanceKm - right.distanceKm)
-    .slice(0, maxReturnedChargers);
+    .slice(0, maxReturnedChargers)
+    .map((candidate) => candidate.summary);
 
   if (nearbyChargers.length === 0) {
     return createNoDataResult(
@@ -125,36 +126,44 @@ function createCautions(chargers: ChargerSummary[]): string[] {
   return ["충전소 실시간 작동 여부는 확인할 수 없습니다.", ...staleCaution];
 }
 
-function toChargerSummary(
+interface ChargerCandidate {
+  distanceKm: number;
+  summary: ChargerSummary;
+}
+
+function toChargerCandidate(
   charger: ChargerSourceData,
   destinationCoordinates: Coordinates,
-): ChargerSummary | undefined {
+): ChargerCandidate | undefined {
   if (charger.latitude === undefined || charger.longitude === undefined) {
     return undefined;
   }
 
-  const distanceKm = roundDistance(
-    calculateDistanceKm(destinationCoordinates, {
-      latitude: charger.latitude,
-      longitude: charger.longitude,
-    }),
-  );
+  const distanceKm = calculateDistanceKm(destinationCoordinates, {
+    latitude: charger.latitude,
+    longitude: charger.longitude,
+  });
 
   return {
-    name: charger.name,
-    ...(charger.address !== undefined ? { address: charger.address } : {}),
-    ...(charger.installationLocationDescription !== undefined
-      ? { installationLocationDescription: charger.installationLocationDescription }
-      : {}),
     distanceKm,
-    ...(charger.managingOrganization !== undefined
-      ? { managingOrganization: charger.managingOrganization }
-      : {}),
-    ...(charger.phoneNumber !== undefined ? { phoneNumber: charger.phoneNumber } : {}),
-    ...(charger.referenceDate !== undefined ? { referenceDate: charger.referenceDate } : {}),
-    ...(charger.operatingHours !== undefined ? { operatingHours: charger.operatingHours } : {}),
-    dataFreshness: calculateDataFreshness(charger.referenceDate),
-    realtimeAvailability: "UNKNOWN",
+    summary: {
+      name: charger.name,
+      ...(charger.address !== undefined ? { address: charger.address } : {}),
+      ...(charger.installationLocationDescription !== undefined
+        ? { installationLocationDescription: charger.installationLocationDescription }
+        : {}),
+      distanceKm: roundDistance(distanceKm),
+      ...(charger.managingOrganization !== undefined
+        ? { managingOrganization: charger.managingOrganization }
+        : {}),
+      ...(charger.phoneNumber !== undefined ? { phoneNumber: charger.phoneNumber } : {}),
+      ...(charger.referenceDate !== undefined ? { referenceDate: charger.referenceDate } : {}),
+      ...(charger.operatingHours !== undefined
+        ? { operatingHours: charger.operatingHours }
+        : {}),
+      dataFreshness: calculateDataFreshness(charger.referenceDate),
+      realtimeAvailability: "UNKNOWN",
+    },
   };
 }
 
@@ -187,6 +196,20 @@ function parseReferenceDate(referenceDate: string | undefined): Date | undefined
   }
 
   const [, year, month, day] = isoLikeMatch;
+  const yearNumber = Number(year);
+  const monthNumber = Number(month);
+  const dayNumber = Number(day);
+
+  const validationDate = new Date(Date.UTC(yearNumber, monthNumber - 1, dayNumber));
+  const isCalendarValid =
+    validationDate.getUTCFullYear() === yearNumber &&
+    validationDate.getUTCMonth() === monthNumber - 1 &&
+    validationDate.getUTCDate() === dayNumber;
+
+  if (!isCalendarValid) {
+    return undefined;
+  }
+
   const parsedDate = new Date(`${year}-${month}-${day}T00:00:00+09:00`);
 
   return Number.isNaN(parsedDate.getTime()) ? undefined : parsedDate;
