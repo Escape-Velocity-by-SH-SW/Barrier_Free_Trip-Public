@@ -253,7 +253,7 @@ export class VisitAssessmentService {
         travelerType: request.travelerType,
         context,
       }),
-      this.chargerService.findNearbyChargers({ destination, context }),
+      this.chargerService.findNearbyChargers({ destination, radiusKm, context }),
       this.festivalRiskService.assess({
         destination,
         visitDate: request.visitDate,
@@ -271,7 +271,9 @@ export class VisitAssessmentService {
         ? weather.value
         : createFailedWeatherResult(destination, request.visitDate, request.travelerType);
     const chargerResult =
-      chargers.status === "fulfilled" ? chargers.value : createFailedChargerResult(destination);
+      chargers.status === "fulfilled"
+        ? chargers.value
+        : createFailedChargerResult(destination, radiusKm);
     const festivalRiskResult =
       festivalRisk.status === "fulfilled"
         ? festivalRisk.value
@@ -466,10 +468,14 @@ function createFailedWeatherResult(
   };
 }
 
-function createFailedChargerResult(destination: Destination): NearbyWheelchairChargerResult {
+function createFailedChargerResult(
+  destination: Destination,
+  radiusKm: number,
+): NearbyWheelchairChargerResult {
   return {
     status: "FAILED",
     destination,
+    radiusKm,
     chargers: [],
     cautions: ["전동휠체어 충전소 정보를 조회하지 못했습니다."],
   };

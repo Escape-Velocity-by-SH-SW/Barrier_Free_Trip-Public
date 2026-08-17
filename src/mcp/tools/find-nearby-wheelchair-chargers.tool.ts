@@ -27,14 +27,25 @@ const candidateSchema = z.object({
   imageUrl: z.string().optional(),
 });
 
+const operatingHoursSchema = z.object({
+  weekdayStart: z.string().optional(),
+  weekdayEnd: z.string().optional(),
+  saturdayStart: z.string().optional(),
+  saturdayEnd: z.string().optional(),
+  holidayStart: z.string().optional(),
+  holidayEnd: z.string().optional(),
+});
+
 export const findNearbyWheelchairChargersInputSchema = {
   destination: z.string().trim().min(1),
+  radiusKm: z.number().min(0.1).max(20).default(3),
 };
 
 export const findNearbyWheelchairChargersOutputSchema = {
   status: z.enum(["SUCCESS", "NO_DATA", "FAILED", "NOT_APPLICABLE", "AMBIGUOUS_DESTINATION"]),
   message: z.string().optional(),
   destination: destinationSchema.optional(),
+  radiusKm: z.number().positive().optional(),
   chargers: z
     .array(
       z.object({
@@ -45,6 +56,8 @@ export const findNearbyWheelchairChargersOutputSchema = {
         managingOrganization: z.string().optional(),
         phoneNumber: z.string().optional(),
         referenceDate: z.string().optional(),
+        operatingHours: operatingHoursSchema.optional(),
+        dataFreshness: z.enum(["FRESH", "STALE", "UNKNOWN"]),
         realtimeAvailability: z.literal("UNKNOWN"),
       }),
     )

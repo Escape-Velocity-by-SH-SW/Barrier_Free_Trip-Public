@@ -12,6 +12,7 @@ import { runWithDeadline } from "./deadline.js";
 
 export interface NearbyWheelchairChargersToolRequest {
   destination: string;
+  radiusKm?: number;
   context?: OperationContext;
 }
 
@@ -87,6 +88,7 @@ export class NearbyWheelchairChargersToolService {
       status: "SUCCESS",
       result: await this.chargerService.findNearbyChargers({
         destination: resolution.destination,
+        ...(request.radiusKm !== undefined ? { radiusKm: request.radiusKm } : {}),
         context,
       }),
     };
