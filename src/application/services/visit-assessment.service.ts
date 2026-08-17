@@ -22,6 +22,11 @@ import type {
   VisitAssessmentStatus,
 } from "../../domain/visit-assessment.js";
 import type { DestinationWeatherResult } from "../../domain/weather.js";
+import type { OperationContext } from "../ports/operation-context.js";
+import { mapWithConcurrency } from "./concurrency.js";
+import { runWithDeadline } from "./deadline.js";
+import { ensureObservedContext, writeToolSummary } from "./tool-observation.js";
+import { performanceConfig } from "./performance-config.js";
 
 export interface VisitAssessmentRequest {
   destination: string;
@@ -29,6 +34,35 @@ export interface VisitAssessmentRequest {
   visitDate: string;
   travelerType: TravelerType;
   radiusKm?: number;
+  context?: OperationContext;
+}
+
+export interface VisitAssessmentBatchRequest {
+  destinations: string[];
+  visitDate: string;
+  travelerType: TravelerType;
+  radiusKm?: number;
+  context?: OperationContext;
+}
+
+export interface VisitAssessmentBatchItem {
+  requestedDestination: string;
+  status: "SUCCESS" | "NO_DATA" | "AMBIGUOUS_DESTINATION" | "FAILED";
+  assessment?: AccessibleVisitAssessment;
+  candidates?: DestinationCandidate[];
+  message?: string;
+}
+
+export interface VisitAssessmentBatchResult {
+  status: "SUCCESS" | "PARTIAL_SUCCESS" | "FAILED";
+  requestedCandidateCount: number;
+  candidateCount: number;
+  results: VisitAssessmentBatchItem[];
+}
+
+export interface VisitAssessmentPerformanceOptions {
+  overallDeadlineMs: number;
+  destinationConcurrency: number;
 }
 
 const defaultRadiusKm = 3;
@@ -58,41 +92,173 @@ export class VisitAssessmentService {
     private readonly weatherService: WeatherService,
     private readonly chargerService: ChargerService,
     private readonly festivalRiskService: FestivalRiskService,
+    private readonly performanceOptions: VisitAssessmentPerformanceOptions = {
+      overallDeadlineMs: performanceConfig.overallDeadlineMs,
+      destinationConcurrency: performanceConfig.destinationConcurrency,
+    },
   ) {}
 
   async assess(request: VisitAssessmentRequest): Promise<AccessibleVisitAssessment> {
-    const radiusKm = request.radiusKm ?? defaultRadiusKm;
-    const resolution =
-      request.contentId !== undefined
-        ? await this.destinationResolver.resolveByContentId({
-            contentId: request.contentId,
-            destinationName: request.destination,
-          })
-        : await this.destinationResolver.resolve(request.destination);
+    const observedContext = ensureObservedContext("assess_accessible_visit", request.context);
+    const startedAt = performance.now();
+    let resolutionLatencyMs = 0;
 
-    if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
-      throw new VisitAssessmentDestinationResolutionError(
-        resolution.status,
-        resolution.candidates ?? [],
+    try {
+      return await runWithDeadline(
+        this.performanceOptions.overallDeadlineMs,
+        async (context) => {
+          const resolutionStartedAt = performance.now();
+          const resolution =
+            request.contentId !== undefined
+              ? await this.destinationResolver.resolveByContentId(
+                  {
+                    contentId: request.contentId,
+                    destinationName: request.destination,
+                  },
+                  context,
+                )
+              : await this.destinationResolver.resolve(request.destination, context);
+          resolutionLatencyMs = Math.round(performance.now() - resolutionStartedAt);
+
+          if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
+            throw new VisitAssessmentDestinationResolutionError(
+              resolution.status,
+              resolution.candidates ?? [],
+            );
+          }
+
+          const assessment = await this.assessResolvedDestination(
+            request,
+            resolution.destination,
+            context,
+          );
+          this.logSummary({
+            startedAt,
+            requestedCandidateCount: 1,
+            candidateCount: 1,
+            resolutionLatencyMs,
+            results: [assessment],
+            context: observedContext,
+          });
+          return assessment;
+        },
+        observedContext,
       );
+    } catch (error) {
+      this.logSummary({
+        startedAt,
+        requestedCandidateCount: 1,
+        candidateCount: 1,
+        resolutionLatencyMs,
+        results: [],
+        context: observedContext,
+        failedCandidates: 1,
+      });
+      throw error;
     }
+  }
 
-    const destination = resolution.destination;
+  async assessBatch(request: VisitAssessmentBatchRequest): Promise<VisitAssessmentBatchResult> {
+    const normalizedDestinations = normalizeDestinations(request.destinations);
+    const observedContext = ensureObservedContext("assess_accessible_visit", request.context);
+    const startedAt = performance.now();
+    let resolutionLatencyMs = 0;
+
+    const results = await runWithDeadline(
+      this.performanceOptions.overallDeadlineMs,
+      (context) =>
+        mapWithConcurrency(
+          normalizedDestinations,
+          this.performanceOptions.destinationConcurrency,
+          async (destinationName) => {
+            if (context.signal?.aborted === true) {
+              return createBatchFailure(
+                destinationName,
+                "FAILED",
+                "전체 처리 시간이 초과되었습니다.",
+              );
+            }
+
+            const resolutionStartedAt = performance.now();
+            const resolution = await this.destinationResolver.resolve(destinationName, context);
+            resolutionLatencyMs = Math.max(
+              resolutionLatencyMs,
+              Math.round(performance.now() - resolutionStartedAt),
+            );
+
+            if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
+              return createBatchFailure(
+                destinationName,
+                toBatchStatus(resolution.status),
+                createResolutionMessage(resolution.status),
+                resolution.candidates,
+              );
+            }
+
+            const assessment = await this.assessResolvedDestination(
+              {
+                destination: destinationName,
+                visitDate: request.visitDate,
+                travelerType: request.travelerType,
+                ...(request.radiusKm !== undefined ? { radiusKm: request.radiusKm } : {}),
+              },
+              resolution.destination,
+              context,
+            );
+            return {
+              requestedDestination: destinationName,
+              status: "SUCCESS" as const,
+              assessment,
+            };
+          },
+        ),
+      observedContext,
+    );
+    const successfulAssessments = results.flatMap((result) =>
+      result.assessment !== undefined ? [result.assessment] : [],
+    );
+    const batchResult: VisitAssessmentBatchResult = {
+      status: getBatchOverallStatus(results),
+      requestedCandidateCount: request.destinations.length,
+      candidateCount: normalizedDestinations.length,
+      results,
+    };
+    this.logSummary({
+      startedAt,
+      requestedCandidateCount: request.destinations.length,
+      candidateCount: normalizedDestinations.length,
+      resolutionLatencyMs,
+      results: successfulAssessments,
+      context: observedContext,
+      failedCandidates: results.length - successfulAssessments.length,
+    });
+    return batchResult;
+  }
+
+  private async assessResolvedDestination(
+    request: VisitAssessmentRequest,
+    destination: Destination,
+    context: OperationContext,
+  ): Promise<AccessibleVisitAssessment> {
+    const radiusKm = request.radiusKm ?? defaultRadiusKm;
     const [accessibility, weather, chargers, festivalRisk] = await Promise.allSettled([
       this.accessibilityService.getAccessibility({
         destination,
         travelerType: request.travelerType,
+        context,
       }),
       this.weatherService.getDestinationWeather({
         destination,
         visitDate: request.visitDate,
         travelerType: request.travelerType,
+        context,
       }),
-      this.chargerService.findNearbyChargers({ destination, radiusKm }),
+      this.chargerService.findNearbyChargers({ destination, radiusKm, context }),
       this.festivalRiskService.assess({
         destination,
         visitDate: request.visitDate,
         radiusKm,
+        context,
       }),
     ]);
 
@@ -152,6 +318,119 @@ export class VisitAssessmentService {
       phoneCheckQuestions: createPhoneCheckQuestions(request.travelerType),
     };
   }
+
+  private logSummary(input: {
+    startedAt: number;
+    requestedCandidateCount: number;
+    candidateCount: number;
+    resolutionLatencyMs: number;
+    results: AccessibleVisitAssessment[];
+    context: OperationContext;
+    failedCandidates?: number;
+  }): void {
+    const partialResultCount =
+      (input.failedCandidates ?? 0) +
+      input.results.filter((result) => result.overallAssessment.status === "CHECK_REQUIRED").length;
+    const status =
+      input.results.length === 0
+        ? "FAILED"
+        : partialResultCount > 0
+          ? "PARTIAL_SUCCESS"
+          : "SUCCESS";
+    writeToolSummary(
+      input.context,
+      input.startedAt,
+      {
+        status,
+        requestedCandidateCount: input.requestedCandidateCount,
+        candidateCount: input.candidateCount,
+        deduplicatedCandidateCount: input.requestedCandidateCount - input.candidateCount,
+        destinationResolutionLatencyMs: input.resolutionLatencyMs,
+        partialResultCount,
+        sourceStatuses: summarizeSourceStatuses(input.results),
+      },
+      input.context.logWriter,
+    );
+  }
+}
+
+function normalizeDestinations(destinations: string[]): string[] {
+  const normalized = destinations.map((value) => value.trim().replaceAll(/\s+/g, " "));
+  const seen = new Set<string>();
+  return normalized.filter((value) => {
+    const key = value.toLocaleLowerCase("ko-KR");
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function toBatchStatus(
+  status: DestinationResolutionStatus,
+): Exclude<VisitAssessmentBatchItem["status"], "SUCCESS"> {
+  return status === "RESOLVED" ? "FAILED" : status;
+}
+
+function createResolutionMessage(status: DestinationResolutionStatus): string {
+  if (status === "AMBIGUOUS_DESTINATION") {
+    return "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해주세요.";
+  }
+  if (status === "NO_DATA") {
+    return "검색 결과가 없습니다.";
+  }
+  return "관광지 검색 정보를 조회하지 못했습니다.";
+}
+
+function createBatchFailure(
+  requestedDestination: string,
+  status: Exclude<VisitAssessmentBatchItem["status"], "SUCCESS">,
+  message: string,
+  candidates?: DestinationCandidate[],
+): VisitAssessmentBatchItem {
+  return {
+    requestedDestination,
+    status,
+    message,
+    ...(candidates !== undefined ? { candidates } : {}),
+  };
+}
+
+function getBatchOverallStatus(
+  results: VisitAssessmentBatchItem[],
+): VisitAssessmentBatchResult["status"] {
+  const successCount = results.filter((result) => result.status === "SUCCESS").length;
+  const hasPartialAssessment = results.some(
+    (result) => result.assessment?.overallAssessment.status === "CHECK_REQUIRED",
+  );
+  if (successCount === results.length && !hasPartialAssessment) {
+    return "SUCCESS";
+  }
+  return successCount > 0 ? "PARTIAL_SUCCESS" : "FAILED";
+}
+
+function summarizeSourceStatuses(
+  results: AccessibleVisitAssessment[],
+): Record<string, Record<string, number>> {
+  const summary: Record<string, Record<string, number>> = {};
+  for (const result of results) {
+    addStatus(summary, "accessibility", result.accessibility.status);
+    addStatus(summary, "weather", result.weather.status);
+    addStatus(summary, "charger", result.chargers.status);
+    addStatus(summary, "festival", result.festivalRisk.status);
+  }
+  return summary;
+}
+
+function addStatus(
+  summary: Record<string, Record<string, number>>,
+  source: string,
+  status: string,
+): void {
+  const sourceSummary = summary[source] ?? {};
+  sourceSummary[status] = (sourceSummary[status] ?? 0) + 1;
+  summary[source] = sourceSummary;
 }
 
 function createFailedAccessibilityResult(
@@ -282,10 +561,14 @@ function createUnknowns(
 ): string[] {
   return [
     ...accessibility.unknowns,
-    ...(weather.status === "FAILED" || weather.status === "NO_DATA" || weather.status === "OUT_OF_RANGE"
+    ...(weather.status === "FAILED" ||
+    weather.status === "NO_DATA" ||
+    weather.status === "OUT_OF_RANGE"
       ? ["날씨 정보"]
       : []),
-    ...(chargers.status === "FAILED" || chargers.status === "NO_DATA" ? ["전동휠체어 충전소 정보"] : []),
+    ...(chargers.status === "FAILED" || chargers.status === "NO_DATA"
+      ? ["전동휠체어 충전소 정보"]
+      : []),
     ...(festivalRisk.status === "FAILED" || festivalRisk.status === "NO_DATA"
       ? ["축제 기반 혼잡 위험 정보"]
       : []),

@@ -6,10 +6,14 @@ import type {
   DestinationCandidate,
   DestinationResolutionStatus,
 } from "../../domain/destination.js";
+import type { OperationContext } from "../ports/operation-context.js";
+import { performanceConfig } from "./performance-config.js";
+import { runWithDeadline } from "./deadline.js";
 
 export interface NearbyWheelchairChargersToolRequest {
   destination: string;
   radiusKm?: number;
+  context?: OperationContext;
 }
 
 export interface DestinationCandidateSummary {
@@ -38,15 +42,31 @@ export type NearbyWheelchairChargersToolResult =
     };
 
 export class NearbyWheelchairChargersToolService {
+  private readonly overallDeadlineMs: number;
+
   constructor(
     private readonly destinationResolver: DestinationResolver,
     private readonly chargerService: ChargerService,
-  ) {}
+    options: { readonly overallDeadlineMs?: number } = {},
+  ) {
+    this.overallDeadlineMs = options.overallDeadlineMs ?? performanceConfig.overallDeadlineMs;
+  }
 
   async execute(
     request: NearbyWheelchairChargersToolRequest,
   ): Promise<NearbyWheelchairChargersToolResult> {
-    const resolution = await this.destinationResolver.resolve(request.destination);
+    return runWithDeadline(
+      this.overallDeadlineMs,
+      (context) => this.executeWithinDeadline(request, context),
+      request.context,
+    );
+  }
+
+  private async executeWithinDeadline(
+    request: NearbyWheelchairChargersToolRequest,
+    context: OperationContext,
+  ): Promise<NearbyWheelchairChargersToolResult> {
+    const resolution = await this.destinationResolver.resolve(request.destination, context);
 
     if (resolution.status !== "RESOLVED" || resolution.destination === undefined) {
       if (resolution.status === "AMBIGUOUS_DESTINATION") {
@@ -69,6 +89,7 @@ export class NearbyWheelchairChargersToolService {
       result: await this.chargerService.findNearbyChargers({
         destination: resolution.destination,
         ...(request.radiusKm !== undefined ? { radiusKm: request.radiusKm } : {}),
+        context,
       }),
     };
   }

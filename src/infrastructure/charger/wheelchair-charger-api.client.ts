@@ -1,5 +1,6 @@
 import type { HttpClient, HttpRequestOptions } from "../http/http-client.js";
 import { HttpRequestError } from "../http/http-error.js";
+import type { OperationContext } from "../../application/ports/operation-context.js";
 import type {
   WheelchairChargerBodyDto,
   WheelchairChargerItemDto,
@@ -18,6 +19,7 @@ export interface WheelChairChargerRequest {
   ctprvnNm: string;
   signguNm: string;
   signal?: AbortSignal;
+  context?: OperationContext;
 }
 
 export type WheelchairChargerApiResultCode =
@@ -70,9 +72,7 @@ export class WheelChairChargerApiClient {
     private readonly config: WheelChairApiClientConfig,
   ) {}
 
-  async getWheelChairCharger(
-    request: WheelChairChargerRequest,
-  ): Promise<WheelchairChargerBodyDto> {
+  async getWheelChairCharger(request: WheelChairChargerRequest): Promise<WheelchairChargerBodyDto> {
     const response = await this.httpClient.requestJson<unknown>(
       buildWheelChairChargerRequestOptions(this.config, request),
     );
@@ -97,6 +97,7 @@ function buildWheelChairChargerRequestOptions(
     },
     ...(config.timeoutMs !== undefined ? { timeoutMs: config.timeoutMs } : {}),
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
+    ...(request.context !== undefined ? { context: request.context } : {}),
   };
 }
 
@@ -151,7 +152,10 @@ function parseWheelchairChargerResponse(response: unknown): WheelchairChargerBod
   return body;
 }
 
-function createApiError(resultCode: string, resultMsg: string | undefined): WheelchairChargerApiError {
+function createApiError(
+  resultCode: string,
+  resultMsg: string | undefined,
+): WheelchairChargerApiError {
   return new WheelchairChargerApiError({
     resultCode,
     ...(resultMsg !== undefined ? { resultMsg } : {}),
@@ -185,14 +189,12 @@ function getResultCode(response: Record<string, unknown>): string | undefined {
 
   if (typeof resultCode === "string") {
     const normalizedCode = resultCode.trim();
-    
-    if(normalizedCode.length == 0) {
+
+    if (normalizedCode.length === 0) {
       return undefined;
     }
 
-    return /^\d+$/.test(normalizedCode)
-    ? normalizedCode.padStart(2, "0")
-    : normalizedCode;
+    return /^\d+$/.test(normalizedCode) ? normalizedCode.padStart(2, "0") : normalizedCode;
   }
 
   if (typeof resultCode === "number" && Number.isFinite(resultCode)) {
@@ -226,12 +228,14 @@ function getHeader(response: Record<string, unknown>): Record<string, unknown> |
 
 function getResponseBody(response: Record<string, unknown>): WheelchairChargerBodyDto | undefined {
   const responseEnvelope = response.response;
+  const body =
+    isRecord(responseEnvelope) && isRecord(responseEnvelope.body)
+      ? responseEnvelope.body
+      : response.body;
 
-  if (!isRecord(responseEnvelope) || !isRecord(responseEnvelope.body)) {
+  if (!isRecord(body)) {
     return undefined;
   }
-
-  const body = responseEnvelope.body;
   const items = normalizeItems(body.items);
 
   if (items === undefined) {
@@ -247,12 +251,21 @@ function getResponseBody(response: Record<string, unknown>): WheelchairChargerBo
 }
 
 function normalizeItems(value: unknown): WheelchairChargerItemDto[] | undefined {
-  if (!Array.isArray(value)) {
+  if (Array.isArray(value)) {
+    return value.map((item) => (isRecord(item) ? item : {}));
+  }
+
+  if (!isRecord(value)) {
     return undefined;
   }
 
-  const items: unknown[] = value;
-  return items.map((item) => (isRecord(item) ? item : {}));
+  const nestedItems = value.item;
+
+  if (Array.isArray(nestedItems)) {
+    return nestedItems.map((item) => (isRecord(item) ? item : {}));
+  }
+
+  return isRecord(nestedItems) ? [nestedItems] : undefined;
 }
 
 function normalizeBodyText(value: unknown): string | undefined {

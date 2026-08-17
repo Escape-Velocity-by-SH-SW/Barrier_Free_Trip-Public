@@ -10,10 +10,12 @@ import type {
 } from "../../domain/charger.js";
 import type { Coordinates, Destination } from "../../domain/destination.js";
 import { calculateDistanceKm } from "../../domain/geo.js";
+import type { OperationContext } from "../ports/operation-context.js";
 
 export interface ChargerServiceRequest {
   destination: Destination;
   radiusKm?: number;
+  context?: OperationContext;
 }
 
 type RegionParseResult =
@@ -59,10 +61,13 @@ export class ChargerService {
     }
 
     try {
-      const chargers = await this.repository.findByRegion({
-        province: region.province,
-        cityCounty: region.cityCounty,
-      });
+      const chargers = await this.repository.findByRegion(
+        {
+          province: region.province,
+          cityCounty: region.cityCounty,
+        },
+        request.context,
+      );
       return createResultFromChargers(request, radiusKm, chargers);
     } catch (error) {
       return createFailedResult(request, radiusKm, getLookupFailureCaution(error));
@@ -71,10 +76,7 @@ export class ChargerService {
 }
 
 function getLookupFailureCaution(error: unknown): string {
-  if (
-    error instanceof WheelchairChargerRepositoryError &&
-    error.userMessage !== undefined
-  ) {
+  if (error instanceof WheelchairChargerRepositoryError && error.userMessage !== undefined) {
     return error.userMessage;
   }
 

@@ -8,16 +8,20 @@ import type {
 } from "../../domain/accessibility.js";
 import type { Destination } from "../../domain/destination.js";
 import { touristAttractionContentTypeId } from "../../domain/destination.js";
+import type { OperationContext } from "../ports/operation-context.js";
+import { createStructuredLogEvent, toSafeErrorFields, writeStructuredLog } from "./logging.js";
 
 export interface AccessibilityServiceRequest {
   destination: Destination;
   travelerType?: TravelerType;
+  context?: OperationContext;
 }
 
 export interface AccessibilityByContentIdRequest {
   contentId: string;
   contentTypeId?: string;
   travelerType?: TravelerType;
+  context?: OperationContext;
 }
 
 export interface AccessibilityLookupResult {
@@ -61,17 +65,14 @@ export class AccessibilityService {
       const sourceData = await this.repository.getAccessibility(
         request.destination.contentId,
         request.destination.contentTypeId,
+        request.context,
       );
       return {
         ...createLookupResult(sourceData, request.travelerType),
         destination: request.destination,
       };
     } catch (error) {
-      logAccessibilityLookupFailure("getAccessibility", {
-        contentId: request.destination.contentId,
-        contentTypeId: request.destination.contentTypeId,
-        error,
-      });
+      logAccessibilityLookupFailure(request.context, error);
 
       return {
         ...createFailedLookupResult(request.travelerType),
@@ -88,15 +89,12 @@ export class AccessibilityService {
       const sourceData = await this.repository.getAccessibility(
         request.contentId,
         request.contentTypeId ?? touristAttractionContentTypeId,
+        request.context,
       );
 
       return createLookupResult(sourceData, request.travelerType);
     } catch (error) {
-      logAccessibilityLookupFailure("getAccessibilityByContentId", {
-        contentId: request.contentId,
-        contentTypeId: request.contentTypeId ?? touristAttractionContentTypeId,
-        error,
-      });
+      logAccessibilityLookupFailure(request.context, error);
 
       return createFailedLookupResult(request.travelerType);
     }
@@ -104,31 +102,17 @@ export class AccessibilityService {
 }
 
 function logAccessibilityLookupFailure(
-  methodName: "getAccessibility" | "getAccessibilityByContentId",
-  context: {
-    contentId: string;
-    contentTypeId: string;
-    error: unknown;
-  },
+  context: OperationContext | undefined,
+  error: unknown,
 ): void {
-  console.error("[AccessibilityService] failed to lookup accessibility", {
-    methodName,
-    contentId: context.contentId,
-    contentTypeId: context.contentTypeId,
-    error: toLoggableError(context.error),
-  });
-}
-
-function toLoggableError(error: unknown): Record<string, unknown> {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      ...(error.stack !== undefined ? { stack: error.stack } : {}),
-    };
-  }
-
-  return { value: error };
+  writeStructuredLog(
+    createStructuredLogEvent("error", "source.error", {
+      ...(context?.requestId !== undefined ? { requestId: context.requestId } : {}),
+      ...(context?.tool !== undefined ? { tool: context.tool } : {}),
+      source: "accessibility",
+      ...toSafeErrorFields(error),
+    }),
+  );
 }
 
 function createLookupResult(

@@ -5,6 +5,7 @@
 node_modules
 dist
 coverage
+logs
 
 .env
 .env.*
@@ -12,3 +13,7 @@ coverage
 *.log
 npm-debug.log*
 .DS_Store
+
+**/*.test.*
+**/*.spec.*
+**/__tests__/

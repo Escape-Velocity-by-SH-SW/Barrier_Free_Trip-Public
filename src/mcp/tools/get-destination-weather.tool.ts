@@ -2,8 +2,10 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod/v4";
 
 import type { AppContainer } from "../../bootstrap/create-container.js";
+import type { OperationContext } from "../../application/ports/operation-context.js";
 import { travelerTypes } from "../../domain/accessibility.js";
 import { createToolResult } from "./tool-result.js";
+import { createToolObservation } from "../../application/services/tool-observation.js";
 
 const precipitationTypes = ["NONE", "RAIN", "RAIN_SNOW", "SNOW", "SHOWER", "UNKNOWN"] as const;
 
@@ -99,9 +101,15 @@ export function registerGetDestinationWeatherTool(
       },
     },
     async (input) => {
-      const result = await getDestinationWeather(input, container);
-
-      return createToolResult(result);
+      const observation = createToolObservation("get_destination_weather");
+      try {
+        const result = await getDestinationWeather(input, container, observation.context);
+        observation.summary({ status: result.status });
+        return createToolResult(result);
+      } catch (error) {
+        observation.error(error);
+        throw error;
+      }
     },
   );
 }
@@ -110,10 +118,12 @@ export function registerGetDestinationWeatherTool(
 async function getDestinationWeather(
   input: GetDestinationWeatherInput,
   container: AppContainer,
+  context: OperationContext,
 ): Promise<GetDestinationWeatherOutput> {
   return container.services.destinationWeatherToolService.execute({
     destination: input.destination,
     visitDate: input.visitDate,
     ...(input.travelerType !== undefined ? { travelerType: input.travelerType } : {}),
+    context,
   });
 }

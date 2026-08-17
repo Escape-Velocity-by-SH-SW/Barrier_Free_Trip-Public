@@ -13,9 +13,11 @@
     "lint": "eslint \"src/**/*.ts\"",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run --passWithNoTests",
     "start:http": "node dist/http-main.js",
-    "test:watch": "vitest --passWithNoTests"
+    "start:local": "node --env-file-if-exists=.env dist/http-main.js",
+    "predev:observe": "npm run build",
+    "dev:observe": "node scripts/dev-observe.mjs",
+    "logs": "node scripts/logs.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.30.0",
@@ -27,7 +29,6 @@
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",
-    "typescript-eslint": "^8.0.0",
-    "vitest": "^3.0.0"
+    "typescript-eslint": "^8.0.0"
   }
 }
