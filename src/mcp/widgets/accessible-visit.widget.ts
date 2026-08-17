@@ -315,6 +315,11 @@ function buildOverallReason(assessment: AccessibleVisitAssessment): string {
     return `${joinKorean(failedSources.slice(0, 2))} 정보를 조회하지 못해, 출발 전에 공식 정보나 현장 안내를 확인해 주세요.`;
   }
 
+  const unavailableFacilities = findUnavailablePriorityFacilities(assessment);
+  if (unavailableFacilities.length > 0) {
+    return `공공데이터에서 ${joinKorean(unavailableFacilities.slice(0, 2))} 항목이 이용 불가 또는 미설치로 안내되어, 방문 전 대체 동선이나 시설을 확인해 주세요.`;
+  }
+
   const unknownFacilities = findUnknownPriorityFacilities(assessment);
   if (unknownFacilities.length > 0) {
     return `공공데이터에서 ${joinKorean(unknownFacilities.slice(0, 2))} 정보를 확인할 수 없어, 방문 전 이용 가능 여부를 확인해 주세요.`;
@@ -326,6 +331,13 @@ function buildOverallReason(assessment: AccessibleVisitAssessment): string {
   if (assessment.festivalRisk.festivals.length > 0) causes.push("주변 문화축제 일정");
   if (causes.length > 0) {
     return `${joinKorean(causes.slice(0, 2))}이 확인되어 이동 동선과 방문 준비를 조금 더 꼼꼼히 살펴보세요.`;
+  }
+
+  const overallReason = assessment.overallAssessment.reasons.find(
+    (reason) => reason.trim().length > 0,
+  );
+  if (overallReason !== undefined) {
+    return overallReason;
   }
 
   if (assessment.overallAssessment.status === "INSUFFICIENT_DATA") {
@@ -346,6 +358,12 @@ function getFailedSourceLabels(assessment: AccessibleVisitAssessment): string[] 
     labels.push("전동휠체어 충전소");
   }
   return labels;
+}
+
+function findUnavailablePriorityFacilities(assessment: AccessibleVisitAssessment): string[] {
+  return facilityPriorities[assessment.visit.travelerType]
+    .filter((key) => assessment.accessibility.facilities[key].status === "NOT_AVAILABLE")
+    .map((key) => facilityLabels[key]);
 }
 
 function findUnknownPriorityFacilities(assessment: AccessibleVisitAssessment): string[] {

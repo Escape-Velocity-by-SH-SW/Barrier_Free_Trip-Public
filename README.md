@@ -354,10 +354,10 @@ npm run build
 
 `assess_accessible_visit`의 `SUMMARY` 단일 관광지 조회가 성공하면 Kakao Tools용 compact ChatKit
 Widget도 함께 제공합니다. 기존 Domain 결과는 `structuredContent`에 유지하고, Widget과 공유용
-Markdown은 `content.text`에 JSON Envelope로 반환합니다. Kakao Tools Preview에서 안정적으로
-확인된 단일 root `Card size="lg"`에 모바일용 요약 정보만 표시합니다. `Card full`, `Basic`
-composite, detail-only `collapsed` 패턴은 현재 사용하지 않으며 `widget.status`도 직접 설정하지
-않습니다.
+Markdown은 `content.text`에 JSON Envelope로 반환합니다. 의도된 구조는 단일 root
+`Card size="lg"`이며 모바일용 요약 정보만 표시합니다. 수동 MCP Inspector와 Kakao Tools Preview
+검증은 아직 수행하지 않았습니다. `Card full`, `Basic` composite, detail-only `collapsed` 패턴은
+현재 사용하지 않으며 `widget.status`도 직접 설정하지 않습니다.
 
 `DETAIL`은 Widget 없이 LLM-friendly detailed context를 `content.text`에 반환합니다. 문화축제는
 전국문화축제표준데이터 범위이므로 모든 지역 행사나 실시간 혼잡 정보가 아니며, 충전소의 실시간

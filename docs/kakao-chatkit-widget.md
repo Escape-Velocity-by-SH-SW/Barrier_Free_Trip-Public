@@ -18,9 +18,10 @@ content[0].text
 → JSON.stringify({ widget, copy_text })
 ```
 
-Kakao Tools Preview에서 안정적으로 확인된 단일 root `Card`, `size: "lg"`만 사용한다.
-`Card size="full"`, `Basic` root와 여러 Card의 composite, detail-only `collapsed` 패턴은 현재
-사용하지 않는다. Kakao가 출처 상태를 자동 표시하므로 `widget.status`도 직접 설정하지 않는다.
+의도된 Widget 구조는 단일 root `Card`, `size: "lg"`다. 수동 MCP Inspector와 Kakao Tools
+Preview 검증은 아직 수행하지 않았다. `Card size="full"`, `Basic` root와 여러 Card의 composite,
+detail-only `collapsed` 패턴은 현재 사용하지 않는다. Kakao가 출처 상태를 자동 표시하므로
+`widget.status`도 직접 설정하지 않는다.
 
 ### DETAIL
 
