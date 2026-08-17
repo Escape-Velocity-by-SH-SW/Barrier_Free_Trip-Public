@@ -217,6 +217,7 @@ UNKNOWN
 ### `assess_accessible_visit`
 
 편의시설, 날씨, 충전소, 축제 정보를 함께 조회하여 종합 방문 유의사항을 반환합니다.
+하나의 Tool에서 최초 평가용 `SUMMARY`와 후속 상세 설명용 `DETAIL` 응답 모드를 지원합니다.
 
 사용 예시:
 
@@ -235,8 +236,18 @@ UNKNOWN
   visitDate: string;
   travelerType: TravelerType;
   radiusKm?: number;
+  responseMode?: "SUMMARY" | "DETAIL"; // 기본값 SUMMARY
 }
 ```
+
+- `SUMMARY`: 최초 종합 방문 평가에 사용하며, 단일 관광지 성공 시 compact Kakao Widget을 반환합니다.
+- `DETAIL`: 직전 종합 평가 전체를 더 자세히 설명해 달라는 후속 요청에 사용합니다. 같은
+  `VisitAssessmentService` 결과를 LLM이 자연어로 풀어쓰기 쉬운 상세 context로 반환하며 Widget은
+  포함하지 않습니다.
+
+`DETAIL` 후속 요청에서는 가능한 경우 대화 문맥의 `destination`, `visitDate`, `travelerType`,
+`contentId`를 재사용합니다. 접근성·날씨·문화축제·충전소 중 한 영역만 묻는 요청은 각각의 전용
+Tool을 사용합니다. `destinations` 비교/batch는 기존 compact structured response를 유지합니다.
 
 주요 결과:
 
@@ -341,10 +352,17 @@ npm run build
 
 ## Kakao Tools Widget
 
-단일 관광지 조회가 성공하면 Kakao Tools용 ChatKit Widget도 함께 제공합니다. 기존 Domain 결과는
-`structuredContent`에 유지하고, Widget과 공유용 Markdown은 `content.text`에 JSON Envelope로
-반환합니다. Kakao Tools 개발 가이드의 예시와 같은 단일 `Card`에 모바일용 요약 정보만
-표시합니다. 실제 렌더링 확인 방법은
+`assess_accessible_visit`의 `SUMMARY` 단일 관광지 조회가 성공하면 Kakao Tools용 compact ChatKit
+Widget도 함께 제공합니다. 기존 Domain 결과는 `structuredContent`에 유지하고, Widget과 공유용
+Markdown은 `content.text`에 JSON Envelope로 반환합니다. 의도된 구조는 단일 root
+`Card size="lg"`이며 모바일용 요약 정보만 표시합니다. 수동 MCP Inspector와 Kakao Tools Preview
+검증은 아직 수행하지 않았습니다. `Card full`, `Basic` composite, detail-only `collapsed` 패턴은
+현재 사용하지 않으며 `widget.status`도 직접 설정하지 않습니다.
+
+`DETAIL`은 Widget 없이 LLM-friendly detailed context를 `content.text`에 반환합니다. 문화축제는
+전국문화축제표준데이터 범위이므로 모든 지역 행사나 실시간 혼잡 정보가 아니며, 충전소의 실시간
+작동 상태도 제공하지 않습니다. 날씨는 현재 SKY 정보를 수집하지 않으므로 맑음·흐림 같은 상태를
+생성하지 않습니다. 실제 렌더링 확인 방법은
 [Kakao Tools ChatKit Widget 확인 가이드](./docs/kakao-chatkit-widget.md)를 참고하세요.
 
 ## 대표 동작 예시

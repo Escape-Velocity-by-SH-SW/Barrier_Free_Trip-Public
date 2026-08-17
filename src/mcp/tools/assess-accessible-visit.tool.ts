@@ -13,6 +13,7 @@ import {
   buildAccessibleVisitCopyText,
   buildAccessibleVisitWidgetEnvelope,
 } from "../widgets/accessible-visit.widget.js";
+import { buildAccessibleVisitDetailContext } from "../widgets/accessible-visit-detail.js";
 import { createWidgetToolResult } from "../widgets/widget-result.js";
 import { createToolResult } from "./tool-result.js";
 import { performanceConfig } from "../../application/services/performance-config.js";
@@ -52,6 +53,12 @@ export const assessAccessibleVisitInputSchema = {
   visitDate: z.iso.date(),
   travelerType: z.enum(travelerTypes),
   radiusKm: z.number().min(0.1).max(20).default(3),
+  responseMode: z
+    .enum(["SUMMARY", "DETAIL"])
+    .default("SUMMARY")
+    .describe(
+      "Use SUMMARY for the initial comprehensive visit assessment; for a single destination it returns a compact Kakao Widget. Use DETAIL for a follow-up request asking for a fuller explanation of the previous comprehensive assessment; it returns LLM-friendly detailed context without a Widget.",
+    ),
 };
 
 export const assessAccessibleVisitOutputSchema = {
@@ -143,7 +150,7 @@ export function registerAssessAccessibleVisitTool(
     "assess_accessible_visit",
     {
       title: "Assess Accessible Visit",
-      description: `[Bopok(보폭)] Assess accessible visits using facilities, weather, wheelchair chargers, and event risk. Use destination for one specific place. To compare places, send up to ${performanceConfig.maxDestinations} names once in destinations instead of calling this tool repeatedly. Do not provide both fields.`,
+      description: `[Bopok(보폭)] Provides a comprehensive accessible-visit assessment by combining accessibility facilities, weather, power-wheelchair chargers, and nearby cultural festivals. Use responseMode=SUMMARY for the initial comprehensive assessment; a successful single-destination request returns a compact Kakao Widget. Use responseMode=DETAIL when the user follows up on the entire previous assessment with requests such as "Tell me more" or "Explain in more detail." Do not call SUMMARY again for that follow-up. Reuse destination, visitDate, travelerType, and contentId from the previous conversation context whenever available. If the user asks about only one area, prefer the corresponding specialized tool: use get_destination_accessibility for accessibility, get_destination_weather for weather, get_destination_event_risk for cultural festivals, and find_nearby_wheelchair_chargers for wheelchair chargers. Use destination for one specific place. To compare places, send up to ${performanceConfig.maxDestinations} names once in destinations instead of calling this tool repeatedly. Do not provide both destination and destinations. Batch requests made with destinations retain the existing compact structured response; the SUMMARY/DETAIL presentation branch applies to single-destination requests.`,
       inputSchema: assessAccessibleVisitInputSchema,
       outputSchema: assessAccessibleVisitOutputSchema,
       annotations: {
@@ -200,6 +207,13 @@ export function registerAssessAccessibleVisitTool(
           status: "SUCCESS",
           ...result,
         };
+
+        if (input.responseMode === "DETAIL") {
+          return createToolResult(
+            output,
+            JSON.stringify(buildAccessibleVisitDetailContext(result)),
+          );
+        }
 
         return createWidgetToolResult(output, {
           buildEnvelope: () => buildAccessibleVisitWidgetEnvelope(result),
