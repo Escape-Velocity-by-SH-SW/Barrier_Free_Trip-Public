@@ -9,11 +9,14 @@ import type {
   AccessibleVisitAssessment,
   VisitAssessmentStatus,
 } from "../../domain/visit-assessment.js";
-import type { DailyWeatherForecast, WeatherRiskType } from "../../domain/weather.js";
+import type {
+  DailyWeatherForecast,
+  PrecipitationType,
+  WeatherRiskType,
+} from "../../domain/weather.js";
 import type {
   BadgeWidgetNode,
   CardWidgetRoot,
-  ColWidgetNode,
   KakaoWidgetEnvelope,
   TextWidgetNode,
   WidgetNode,
@@ -21,31 +24,34 @@ import type {
 
 type FacilityKey = keyof AccessibilityFacilities;
 
-const maxPreparationItems = 3;
+const maxPreparationItems = 4;
 const maxFestivalItems = 3;
+const maxFacilityItems = 5;
 
-const overallLabels: Record<VisitAssessmentStatus, string> = {
+const overallLabels: Readonly<Record<VisitAssessmentStatus, string>> = {
   LIKELY_ACCESSIBLE: "🟢 방문하기 괜찮아요",
   ACCESSIBLE_WITH_CAUTION: "🟠 주의해서 방문해요",
   CHECK_REQUIRED: "🟡 방문 전에 확인해요",
   INSUFFICIENT_DATA: "⚪ 정보가 부족해요",
 };
 
-const overallBadges: Record<VisitAssessmentStatus, Pick<BadgeWidgetNode, "label" | "color">> = {
+const overallBadges: Readonly<
+  Record<VisitAssessmentStatus, Pick<BadgeWidgetNode, "label" | "color">>
+> = {
   LIKELY_ACCESSIBLE: { label: "방문하기 괜찮아요", color: "success" },
   ACCESSIBLE_WITH_CAUTION: { label: "주의해서 방문해요", color: "warning" },
   CHECK_REQUIRED: { label: "방문 전에 확인해요", color: "warning" },
   INSUFFICIENT_DATA: { label: "정보가 부족해요", color: "secondary" },
 };
 
-const travelerLabels: Record<TravelerType, string> = {
+const travelerLabels: Readonly<Record<TravelerType, string>> = {
   POWER_WHEELCHAIR: "전동휠체어",
   MANUAL_WHEELCHAIR: "수동휠체어",
   STROLLER: "유모차",
   ELDERLY_COMPANION: "고령자 동반",
 };
 
-const facilityLabels: Record<FacilityKey, string> = {
+const facilityLabels: Readonly<Record<FacilityKey, string>> = {
   parking: "장애인 주차장",
   route: "접근로",
   entrance: "출입구",
@@ -56,29 +62,11 @@ const facilityLabels: Record<FacilityKey, string> = {
   lactationRoom: "수유실",
 };
 
-const facilitySummaryLabels: Record<FacilityKey, string> = {
-  parking: "주차장",
-  route: "접근로",
-  entrance: "출입구",
-  elevator: "엘리베이터",
-  restroom: "화장실",
-  wheelchairRental: "휠체어 대여",
-  stroller: "유모차 대여",
-  lactationRoom: "수유실",
-};
-
-const movementPriorities: Record<TravelerType, FacilityKey[]> = {
-  POWER_WHEELCHAIR: ["route", "elevator", "entrance"],
-  MANUAL_WHEELCHAIR: ["route", "elevator", "entrance"],
-  STROLLER: ["route", "entrance", "elevator"],
-  ELDERLY_COMPANION: ["route", "entrance", "elevator"],
-};
-
-const conveniencePriorities: Record<TravelerType, FacilityKey[]> = {
-  POWER_WHEELCHAIR: ["restroom", "parking", "wheelchairRental"],
-  MANUAL_WHEELCHAIR: ["restroom", "parking", "wheelchairRental"],
-  STROLLER: ["stroller", "lactationRoom", "elevator"],
-  ELDERLY_COMPANION: ["restroom", "parking", "elevator"],
+const facilityPriorities: Readonly<Record<TravelerType, FacilityKey[]>> = {
+  POWER_WHEELCHAIR: ["route", "entrance", "elevator", "restroom", "parking", "wheelchairRental"],
+  MANUAL_WHEELCHAIR: ["route", "entrance", "elevator", "restroom", "parking", "wheelchairRental"],
+  STROLLER: ["route", "entrance", "elevator", "stroller", "lactationRoom", "restroom"],
+  ELDERLY_COMPANION: ["route", "entrance", "elevator", "restroom", "parking"],
 };
 
 const weatherRiskPriority: WeatherRiskType[] = [
@@ -94,18 +82,18 @@ export function buildAccessibleVisitWidgetEnvelope(
   assessment: AccessibleVisitAssessment,
 ): KakaoWidgetEnvelope {
   return {
-    widget: {
-      type: "Basic",
-      children: [buildVisitSummary(assessment), buildVisitDetails(assessment)],
-    },
+    widget: buildVisitSummary(assessment),
     copy_text: buildAccessibleVisitCopyText(assessment),
   };
 }
 
+/** Kakao Preview에서 검증된 단일 Card(size=lg) SUMMARY Widget을 만든다. */
 export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWidgetRoot {
-  const preparationItems = buildPreparationItems(assessment);
-  const children: WidgetNode[] = [
-    title(assessment.destination.name, "xl"),
+  const children: WidgetNode[] = [title(assessment.destination.name, "xl")];
+  if (assessment.destination.address !== undefined) {
+    children.push(caption(assessment.destination.address));
+  }
+  children.push(
     caption(
       `${formatVisitDate(assessment.visit.date)} · ${travelerLabels[assessment.visit.travelerType]}`,
     ),
@@ -113,12 +101,25 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
     badge(assessment.overallAssessment.status),
     text(buildOverallReason(assessment), "md"),
     divider(),
-    title("한눈에 보기", "md"),
-    ...buildOverviewRows(assessment),
+    title("이동 · 무장애 편의", "md"),
+    ...buildAccessibilitySummary(assessment),
     divider(),
-    title("챙기거나 확인해요", "md"),
-    ...preparationItems.map((item) => text(item, "sm")),
-  ];
+    title("방문일 날씨", "md"),
+    ...buildWeatherSummary(assessment),
+    divider(),
+    title("주변 문화축제", "md"),
+    ...buildFestivalSummary(assessment),
+  );
+
+  if (assessment.visit.travelerType === "POWER_WHEELCHAIR") {
+    children.push(divider(), title("전동휠체어 충전소", "md"), ...buildChargerSummary(assessment));
+  }
+
+  children.push(
+    divider(),
+    title("출발 전에 확인해요", "md"),
+    ...buildPreparationItems(assessment).map((item) => text(`• ${item}`, "sm")),
+  );
 
   return {
     type: "Card",
@@ -129,400 +130,299 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
   };
 }
 
-export function buildVisitDetails(assessment: AccessibleVisitAssessment): CardWidgetRoot {
-  return {
-    type: "Card",
-    size: "lg",
-    padding: 16,
-    key: "accessible-visit-details",
-    collapsed: true,
-    children: [
-      title("상세 정보", "md"),
-      divider(),
-      ...buildAccessibilityDetails(assessment),
-      divider(),
-      ...buildWeatherDetails(assessment),
-      divider(),
-      ...buildFestivalDetails(assessment),
-      divider(),
-      ...buildChargerDetails(assessment),
-    ],
-  };
-}
-
 export function buildPreparationItems(assessment: AccessibleVisitAssessment): string[] {
-  const items = new Set<string>();
-  const primaryWeatherRisk = selectPrimaryWeatherRisk(assessment.weather.risk.riskTypes);
-  if (primaryWeatherRisk !== undefined) {
-    addWeatherPreparation(items, primaryWeatherRisk, assessment.visit.travelerType);
-  }
-  if (
-    assessment.festivalRisk.riskLevel === "HIGH" ||
-    assessment.festivalRisk.riskLevel === "MEDIUM"
-  ) {
-    items.add("🕐 행사 시간과 이동 경로 확인");
-  }
+  const items: string[] = [];
   addAccessibilityPreparation(items, assessment);
-  if (items.size === 0) {
-    items.add("🧭 방문 전 이동 경로 확인");
-  }
-  return [...items].slice(0, maxPreparationItems);
-}
+  addWeatherPreparation(items, assessment);
 
-function buildOverviewRows(assessment: AccessibleVisitAssessment): WidgetNode[] {
-  const movement = buildFacilitySummary(
-    "♿ 이동",
-    movementPriorities[assessment.visit.travelerType],
-    assessment.accessibility.facilities,
-  );
-  const convenience = buildFacilitySummary(
-    "🚻 편의시설",
-    conveniencePriorities[assessment.visit.travelerType],
-    assessment.accessibility.facilities,
-  );
-  const weather = buildWeatherSummary(assessment);
-  const festival = buildFestivalSummary(assessment);
-  const rows: WidgetNode[] = [summaryRow(movement, convenience), summaryRow(weather, festival)];
+  if (assessment.festivalRisk.festivals.length > 0) {
+    items.push("축제 시간 · 주변 이동 동선 확인");
+  }
+
   if (assessment.visit.travelerType === "POWER_WHEELCHAIR") {
-    rows.push(buildChargerSummary(assessment));
+    items.push(
+      assessment.chargers.chargers.length > 0
+        ? "이용할 충전소 실제 작동 여부 확인"
+        : "대체 충전 계획과 방문지 충전 가능 여부 확인",
+    );
   }
-  return rows;
+
+  items.push("방문 당일 공식 예보 재확인");
+  const uniqueItems = uniqueStrings(items);
+  if (uniqueItems.length < 2) {
+    uniqueItems.push("방문지 운영 공지와 이동 동선 확인");
+  }
+  return uniqueItems.slice(0, maxPreparationItems);
 }
 
-function buildFacilitySummary(
-  heading: string,
-  priorities: FacilityKey[],
-  facilities: AccessibilityFacilities,
-): ColWidgetNode {
-  const selected = priorities.slice(0, 2);
-  return summaryBox(
-    heading,
-    selected.map((key) => formatFacilitySummary(key, facilities[key])),
-  );
+function buildAccessibilitySummary(assessment: AccessibleVisitAssessment): WidgetNode[] {
+  return facilityPriorities[assessment.visit.travelerType]
+    .slice(0, maxFacilityItems)
+    .map((key) => text(`• ${formatFacility(key, assessment.accessibility.facilities[key])}`, "sm"));
 }
 
-function buildWeatherSummary(assessment: AccessibleVisitAssessment): ColWidgetNode {
-  const riskType = selectPrimaryWeatherRisk(assessment.weather.risk.riskTypes);
+function formatFacility(key: FacilityKey, evidence: EvidenceItem): string {
+  const label = facilityLabels[key];
+  if (evidence.status === "NOT_PROVIDED") return `${label} · 정보 미제공`;
+  if (evidence.status === "CONFLICTING") return `${label} · 제공 정보가 서로 달라 확인 필요`;
+  if (evidence.status === "NOT_AVAILABLE") {
+    return evidence.description === undefined
+      ? `${label} · 이용 불가로 안내됨`
+      : `${label} · ${normalizeDescription(evidence.description)}`;
+  }
+  if (evidence.description !== undefined) {
+    return `${label} · ${normalizeDescription(evidence.description)}`;
+  }
+  return `${label} · 관련 정보 확인됨`;
+}
+
+function buildWeatherSummary(assessment: AccessibleVisitAssessment): WidgetNode[] {
   const forecast = selectVisitForecast(assessment.weather.forecasts, assessment.visit.date);
-  const heading = `${getWeatherIcon(riskType)} 날씨`;
-  return summaryBox(heading, [
-    formatWeatherRisk(riskType),
-    formatWeatherMetric(riskType, forecast),
-  ]);
-}
-
-function buildFestivalSummary(assessment: AccessibleVisitAssessment): ColWidgetNode {
-  const count = assessment.festivalRisk.festivals.length;
-  return summaryBox("👥 주변 혼잡", [
-    formatFestivalRisk(assessment.festivalRisk.riskLevel),
-    count > 0 ? `주변 행사 ${count}개` : "주변 행사 없음",
-  ]);
-}
-
-function buildChargerSummary(assessment: AccessibleVisitAssessment): ColWidgetNode {
-  const chargers = assessment.chargers.chargers;
-  const lines = [formatChargerCount(assessment.chargers.status, chargers.length)];
-  const nearest = selectNearestCharger(chargers);
-  if (nearest !== undefined) {
-    lines.push(`가까운 곳 ${formatDistance(nearest.distanceKm)}`);
+  if (forecast === undefined) {
+    return [text(formatWeatherDataStatus(assessment.weather.status), "sm")];
   }
-  return summaryBox("🔋 충전", lines);
+
+  const lines = [
+    formatTemperature(forecast),
+    forecast.maxPrecipitationProbabilityPercent !== undefined
+      ? `강수확률 ${forecast.maxPrecipitationProbabilityPercent}%`
+      : undefined,
+    formatPrecipitationTypes(forecast.precipitationTypes),
+    formatPrecipitationAmount(forecast),
+    formatWeatherRisks(assessment.weather.risk.riskTypes),
+  ].filter((line): line is string => line !== undefined);
+
+  return lines.length > 0
+    ? lines.map((line) => text(`• ${line}`, "sm"))
+    : [text("제공된 예보 수치가 없어요", "sm")];
 }
 
-function buildAccessibilityDetails(assessment: AccessibleVisitAssessment): WidgetNode[] {
-  const priorities = uniqueFacilities([
-    ...movementPriorities[assessment.visit.travelerType],
-    ...conveniencePriorities[assessment.visit.travelerType],
-  ]).slice(0, 5);
-  return [
-    title("이동과 편의시설", "md"),
-    ...priorities.flatMap((key) => [
-      text(`• ${facilityLabels[key]}`, "sm", "semibold"),
-      text(formatFacilityDetail(key, assessment.accessibility.facilities[key]), "sm"),
-    ]),
-  ];
+function formatTemperature(forecast: DailyWeatherForecast): string | undefined {
+  const minimum = forecast.minTemperatureCelsius;
+  const maximum = forecast.maxTemperatureCelsius;
+  if (minimum !== undefined && maximum !== undefined) return `${minimum}° / ${maximum}°`;
+  if (minimum !== undefined) return `최저 ${minimum}°`;
+  if (maximum !== undefined) return `최고 ${maximum}°`;
+  return undefined;
 }
 
-function buildWeatherDetails(assessment: AccessibleVisitAssessment): WidgetNode[] {
-  const riskType = selectPrimaryWeatherRisk(assessment.weather.risk.riskTypes);
-  const forecast = selectVisitForecast(assessment.weather.forecasts, assessment.visit.date);
-  const preparation = buildPreparationItems(assessment).filter((item) => !item.includes("행사"));
-  return [
-    title("날씨", "md"),
-    text(`${getWeatherIcon(riskType)} ${formatWeatherRisk(riskType)}`, "sm", "semibold"),
-    text(formatWeatherMetric(riskType, forecast), "sm"),
-    ...(preparation[0] !== undefined ? [text(preparation[0], "sm")] : []),
-  ];
-}
-
-function buildFestivalDetails(assessment: AccessibleVisitAssessment): WidgetNode[] {
-  const festivalCount = assessment.festivalRisk.festivals.length;
-  const festivals = sortFestivalsByDistance(assessment.festivalRisk.festivals).slice(
-    0,
-    maxFestivalItems,
+function formatPrecipitationTypes(types: PrecipitationType[]): string | undefined {
+  const labels = uniqueStrings(
+    types.flatMap((type) => {
+      if (type === "RAIN") return ["비"];
+      if (type === "RAIN_SNOW") return ["비·눈"];
+      if (type === "SNOW") return ["눈"];
+      if (type === "SHOWER") return ["소나기"];
+      if (type === "UNKNOWN") return ["강수형태 미확인"];
+      return [];
+    }),
   );
-  const nodes: WidgetNode[] = [
-    title("주변 행사 · 혼잡", "md"),
-    text(`👥 ${formatFestivalRisk(assessment.festivalRisk.riskLevel)}`, "sm", "semibold"),
-    text(formatFestivalCount(festivalCount), "sm"),
-    ...festivals.map((festival) => text(formatFestivalItem(festival), "sm")),
-  ];
-  if (
-    assessment.festivalRisk.riskLevel === "HIGH" ||
-    assessment.festivalRisk.riskLevel === "MEDIUM"
-  ) {
-    nodes.push(text("행사 시간과 이동 경로를 미리 확인해요", "sm"));
-  }
-  return nodes;
+  return labels.length > 0 ? `${labels.join(" · ")} 예보` : undefined;
 }
 
-function buildChargerDetails(assessment: AccessibleVisitAssessment): WidgetNode[] {
-  if (assessment.visit.travelerType !== "POWER_WHEELCHAIR") {
-    return [
-      title("충전", "md"),
-      text("현재 이동 조건에서는 충전 정보를 우선 표시하지 않아요", "sm"),
-    ];
+function formatPrecipitationAmount(forecast: DailyWeatherForecast): string | undefined {
+  if (forecast.precipitationAmountDescription !== undefined) {
+    return `강수량 ${forecast.precipitationAmountDescription}`;
   }
-  const chargers = assessment.chargers.chargers;
-  const nearest = selectNearestCharger(chargers);
-  return [
-    title("충전", "md"),
-    text(`🔋 ${formatChargerCount(assessment.chargers.status, chargers.length)}`, "sm", "semibold"),
-    ...(nearest !== undefined
-      ? [text(`가장 가까운 곳은 약 ${formatDistance(nearest.distanceKm)}예요`, "sm")]
-      : []),
-    text("충전소의 실시간 상태는 제공되지 않아요", "sm"),
-  ];
+  if (forecast.maxPrecipitationAmountMm !== undefined) {
+    return `최대 1시간 강수량 ${forecast.maxPrecipitationAmountMm}mm`;
+  }
+  return undefined;
 }
 
-function buildOverallReason(assessment: AccessibleVisitAssessment): string {
-  if (assessment.overallAssessment.status === "LIKELY_ACCESSIBLE") {
-    return "현재 확인된 정보에서는 큰 위험 신호가 많지 않아요";
-  }
-
-  if (assessment.overallAssessment.status === "INSUFFICIENT_DATA") {
-    return "확인된 정보가 부족해 방문 전에 한 번 더 확인하는 게 좋아요";
-  }
-
-  if (assessment.overallAssessment.status === "CHECK_REQUIRED") {
-    if (hasFailedSource(assessment)) {
-      return "일부 방문 정보를 확인하기 어려워 출발 전에 다시 확인하는 게 좋아요";
-    }
-
-    const unknownFacilities = findUnknownPriorityFacilities(assessment);
-    if (unknownFacilities.length > 0) {
-      return `${joinKorean(unknownFacilities.slice(0, 2))} 정보를 확인하기 어려워 방문 전에 한 번 더 확인하는 게 좋아요`;
-    }
-
-    return "일부 정보를 확인하기 어려워 방문 전에 한 번 더 확인하는 게 좋아요";
-  }
-
-  const causes: string[] = [];
-  const weatherRisk = selectPrimaryWeatherRisk(assessment.weather.risk.riskTypes);
-  if (weatherRisk !== undefined) {
-    causes.push(formatWeatherCause(weatherRisk));
-  }
-  if (
-    assessment.festivalRisk.riskLevel === "HIGH" ||
-    assessment.festivalRisk.riskLevel === "MEDIUM"
-  ) {
-    causes.push("주변 행사");
-  }
-  if (causes.length > 0) {
-    return `${joinKorean(causes.slice(0, 2))} 때문에 이동할 때 조금 더 주의가 필요해요`;
-  }
-
-  const unknownFacilities = findUnknownPriorityFacilities(assessment);
-  if (unknownFacilities.length > 0) {
-    return `${joinKorean(unknownFacilities.slice(0, 2))} 정보를 확인하기 어려워 이동 전에 한 번 더 확인하는 게 좋아요`;
-  }
-
-  return getDefaultOverallReason(assessment.overallAssessment.status);
-}
-
-function hasFailedSource(assessment: AccessibleVisitAssessment): boolean {
-  return (
-    assessment.accessibility.status !== "SUCCESS" ||
-    assessment.weather.status === "FAILED" ||
-    assessment.festivalRisk.status === "FAILED" ||
-    (assessment.visit.travelerType === "POWER_WHEELCHAIR" &&
-      assessment.chargers.status === "FAILED")
-  );
-}
-
-function findUnknownPriorityFacilities(assessment: AccessibleVisitAssessment): string[] {
-  const priorities = uniqueFacilities([
-    ...movementPriorities[assessment.visit.travelerType],
-    ...conveniencePriorities[assessment.visit.travelerType],
-  ]);
-  return priorities
-    .filter((key) => {
-      const status = assessment.accessibility.facilities[key].status;
-      return status === "NOT_PROVIDED" || status === "CONFLICTING";
-    })
-    .map((key) => facilitySummaryLabels[key]);
-}
-
-export function buildAccessibleVisitCopyText(assessment: AccessibleVisitAssessment): string {
-  const preparation = buildPreparationItems(assessment).map(stripLeadingEmoji).join(" · ");
-  return [
-    `**${assessment.destination.name}**`,
-    `${formatVisitDate(assessment.visit.date)} · ${travelerLabels[assessment.visit.travelerType]}`,
-    overallLabels[assessment.overallAssessment.status],
-    buildOverallReason(assessment),
-    `준비: ${preparation}`,
-  ].join("\n");
-}
-
-function addWeatherPreparation(
-  items: Set<string>,
-  riskType: WeatherRiskType,
-  travelerType: TravelerType,
-): void {
-  const mapping = getWeatherPreparation(riskType, travelerType);
-  for (const item of mapping) {
-    items.add(item);
-  }
-}
-
-function getWeatherPreparation(riskType: WeatherRiskType, travelerType: TravelerType): string[] {
-  if (riskType === "HEAT") return ["☀️ 양산", "💧 물"];
-  if (riskType === "COLD") return ["🧤 장갑", "🔥 핫팩"];
-  if (riskType === "SNOW") return ["🥾 방수 신발", "🧭 이동 경로 확인"];
-  if (riskType === "ICY_ROAD") return ["🧊 미끄러운 구간 확인"];
-  if (riskType === "HEAVY_RAIN" && travelerType === "STROLLER") {
-    return ["☂️ 우비 · 우산", "🛡️ 유모차 레인커버"];
-  }
-  if (riskType === "HEAVY_RAIN" && isWheelchairTraveler(travelerType)) {
-    return ["☂️ 우비 · 우산", "🛡️ 휠체어 방수커버"];
-  }
-  return ["☂️ 우산", "🧥 우비"];
-}
-
-function addAccessibilityPreparation(
-  items: Set<string>,
-  assessment: AccessibleVisitAssessment,
-): void {
-  const priorities = uniqueFacilities([
-    ...movementPriorities[assessment.visit.travelerType],
-    ...conveniencePriorities[assessment.visit.travelerType],
-  ]);
-  const unknown = priorities.find(
-    (key) => assessment.accessibility.facilities[key].status === "NOT_PROVIDED",
-  );
-  if (unknown !== undefined) {
-    items.add(`☎️ ${facilitySummaryLabels[unknown]} 운영 여부 확인`);
-  }
-}
-
-function formatFacilitySummary(key: FacilityKey, evidence: EvidenceItem): string {
-  const label = facilitySummaryLabels[key];
-  if (evidence.status === "CONFIRMED") return formatConfirmedFacility(key);
-  if (evidence.status === "NOT_AVAILABLE") return `${label} 이용 어려워요`;
-  if (evidence.status === "CONFLICTING") return `${label} 정보 확인 필요`;
-  return `${label} 확인 필요`;
-}
-
-function formatFacilityDetail(key: FacilityKey, evidence: EvidenceItem): string {
-  if (evidence.description !== undefined && evidence.description.trim().length > 0) {
-    return formatReportedDescription(evidence.description);
-  }
-  return formatFacilitySummary(key, evidence);
-}
-
-function formatConfirmedFacility(key: FacilityKey): string {
-  if (key === "route") return "접근로 확인돼요";
-  if (key === "entrance") return "출입구 확인돼요";
-  if (key === "elevator") return "엘리베이터 있어요";
-  if (key === "restroom") return "화장실 있어요";
-  if (key === "parking") return "주차장 확인돼요";
-  if (key === "wheelchairRental") return "휠체어 대여 가능";
-  if (key === "stroller") return "유모차 대여 가능";
-  return "수유실이 있어요";
-}
-
-function selectPrimaryWeatherRisk(riskTypes: WeatherRiskType[]): WeatherRiskType | undefined {
-  return weatherRiskPriority.find((riskType) => riskTypes.includes(riskType));
-}
-
-function formatWeatherRisk(riskType: WeatherRiskType | undefined): string {
-  if (riskType === "HEAVY_RAIN") return "강한 비에 주의해요";
-  if (riskType === "RAIN") return "비에 주의해요";
-  if (riskType === "HEAT") return "더위에 주의해요";
-  if (riskType === "COLD") return "추위에 주의해요";
-  if (riskType === "SNOW") return "눈에 주의해요";
-  if (riskType === "ICY_ROAD") return "미끄러운 길에 주의해요";
-  return "큰 위험 없어요";
-}
-
-function formatWeatherCause(riskType: WeatherRiskType): string {
-  const causes: Record<WeatherRiskType, string> = {
-    HEAT: "더위",
-    COLD: "추위",
-    RAIN: "비",
-    HEAVY_RAIN: "강한 비",
-    SNOW: "눈",
-    ICY_ROAD: "미끄러운 길",
+function formatWeatherRisks(riskTypes: WeatherRiskType[]): string | undefined {
+  const primaryRisk = selectPrimaryWeatherRisk(riskTypes);
+  if (primaryRisk === undefined) return undefined;
+  const labels: Readonly<Record<WeatherRiskType, string>> = {
+    HEAT: "폭염 주의",
+    COLD: "한파 주의",
+    RAIN: "비로 인한 미끄럼 주의",
+    HEAVY_RAIN: "강한 비 주의",
+    SNOW: "눈길 주의",
+    ICY_ROAD: "결빙 가능성 주의",
   };
-  return causes[riskType];
+  return labels[primaryRisk];
 }
 
-function formatWeatherMetric(
-  riskType: WeatherRiskType | undefined,
-  forecast: DailyWeatherForecast | undefined,
-): string {
-  if (forecast === undefined) return "예보 수치 확인 필요";
-  if (riskType === "HEAT" && forecast.maxTemperatureCelsius !== undefined) {
-    return `최고 ${forecast.maxTemperatureCelsius}°C`;
-  }
-  if (riskType === "COLD" && forecast.minTemperatureCelsius !== undefined) {
-    return `최저 ${forecast.minTemperatureCelsius}°C`;
-  }
-  if (forecast.maxPrecipitationProbabilityPercent !== undefined) {
-    return `강수확률 ${forecast.maxPrecipitationProbabilityPercent}%`;
-  }
-  if (forecast.maxTemperatureCelsius !== undefined) {
-    return `최고 ${forecast.maxTemperatureCelsius}°C`;
-  }
-  return "예보 수치 확인 필요";
+function formatWeatherDataStatus(status: AccessibleVisitAssessment["weather"]["status"]): string {
+  if (status === "OUT_OF_RANGE") return "단기예보 범위 밖이라 예보 수치를 제공하지 않아요";
+  if (status === "NO_DATA") return "방문일에 제공 가능한 단기예보 데이터가 없어요";
+  if (status === "FAILED") return "날씨 정보를 조회하지 못했어요";
+  return "제공된 예보 수치가 없어요";
 }
 
-function formatFestivalRisk(
-  riskLevel: AccessibleVisitAssessment["festivalRisk"]["riskLevel"],
-): string {
-  if (riskLevel === "LOW") return "비교적 여유로워요";
-  if (riskLevel === "MEDIUM") return "조금 붐빌 수 있어요";
-  if (riskLevel === "HIGH") return "혼잡 가능성 높아요";
-  return "혼잡 확인 필요";
-}
+function buildFestivalSummary(assessment: AccessibleVisitAssessment): WidgetNode[] {
+  const festivalRisk = assessment.festivalRisk;
+  const festivals = sortFestivalsByDistance(festivalRisk.festivals).slice(0, maxFestivalItems);
+  const nodes: WidgetNode[] = [];
 
-function formatChargerCount(
-  status: AccessibleVisitAssessment["chargers"]["status"],
-  count: number,
-): string {
-  if (status === "FAILED" || status === "NO_DATA" || count === 0) return "정보 확인 필요";
-  return `주변 충전소 ${count}곳`;
-}
+  if (festivalRisk.status === "FAILED") {
+    nodes.push(text("문화축제 정보를 조회하지 못했어요", "sm"));
+  } else if (festivalRisk.status === "NO_DATA") {
+    nodes.push(text("방문일에 제공된 문화축제 데이터가 없어요", "sm"));
+  } else if (festivals.length === 0) {
+    nodes.push(
+      text(`${formatDistance(festivalRisk.radiusKm)} 반경 · 공공데이터에서 확인된 축제 없음`, "sm"),
+    );
+  } else {
+    nodes.push(
+      text(
+        `${formatVisitDate(festivalRisk.visitDate)} · ${formatDistance(festivalRisk.radiusKm)} 반경에서 ${festivalRisk.festivals.length}개 확인`,
+        "sm",
+      ),
+      ...festivals.map((festival) => text(`• ${formatFestivalItem(festival)}`, "sm")),
+    );
+  }
 
-function formatFestivalCount(count: number): string {
-  return count > 0 ? `방문일에 주변 행사 ${count}개가 열려요` : "확인된 주변 행사가 없어요";
+  nodes.push(
+    caption("공공데이터 등록 문화축제 기준 · 좌표 없는 축제는 거리 계산에서 제외될 수 있어요"),
+  );
+  return nodes;
 }
 
 function formatFestivalItem(festival: NearbyFestival): string {
   const distance =
     festival.distanceKm !== undefined ? ` · ${formatDistance(festival.distanceKm)}` : "";
-  return `• ${festival.name}${distance}`;
+  return `${festival.name}${distance}`;
+}
+
+function buildChargerSummary(assessment: AccessibleVisitAssessment): WidgetNode[] {
+  const chargers = assessment.chargers.chargers.slice(0, 3);
+  const nodes: WidgetNode[] = [];
+  if (assessment.chargers.status === "FAILED") {
+    nodes.push(text("충전소 위치 정보를 조회하지 못했어요", "sm"));
+  } else if (chargers.length === 0) {
+    nodes.push(
+      text(`${formatDistance(assessment.chargers.radiusKm)} 반경에서 확인된 충전소 없음`, "sm"),
+    );
+  } else {
+    nodes.push(...chargers.map((charger) => text(`• ${formatChargerItem(charger)}`, "sm")));
+  }
+  nodes.push(caption("위치 정보 기준 · 실시간 작동 상태 미제공"));
+  return nodes;
+}
+
+function formatChargerItem(charger: ChargerSummary): string {
+  const location = charger.installationLocationDescription?.trim();
+  return `${charger.name} · ${formatDistance(charger.distanceKm)}${
+    location !== undefined && location.length > 0 ? ` · ${location}` : ""
+  }`;
+}
+
+function buildOverallReason(assessment: AccessibleVisitAssessment): string {
+  const failedSources = getFailedSourceLabels(assessment);
+  if (failedSources.length > 0) {
+    return `${joinKorean(failedSources.slice(0, 2))} 정보를 조회하지 못해, 출발 전에 공식 정보나 현장 안내를 확인해 주세요.`;
+  }
+
+  const unknownFacilities = findUnknownPriorityFacilities(assessment);
+  if (unknownFacilities.length > 0) {
+    return `공공데이터에서 ${joinKorean(unknownFacilities.slice(0, 2))} 정보를 확인할 수 없어, 방문 전 이용 가능 여부를 확인해 주세요.`;
+  }
+
+  const causes: string[] = [];
+  const weatherRisk = selectPrimaryWeatherRisk(assessment.weather.risk.riskTypes);
+  if (weatherRisk !== undefined) causes.push(formatWeatherCause(weatherRisk));
+  if (assessment.festivalRisk.festivals.length > 0) causes.push("주변 문화축제 일정");
+  if (causes.length > 0) {
+    return `${joinKorean(causes.slice(0, 2))}이 확인되어 이동 동선과 방문 준비를 조금 더 꼼꼼히 살펴보세요.`;
+  }
+
+  if (assessment.overallAssessment.status === "INSUFFICIENT_DATA") {
+    return "방문 가능 여부를 판단할 공공데이터가 충분하지 않아, 주요 시설과 운영 정보를 방문 전에 확인해 주세요.";
+  }
+  return "조회된 공공데이터에서 주요 이동 시설과 방문일 예보의 큰 위험 신호가 확인되지 않았어요.";
+}
+
+function getFailedSourceLabels(assessment: AccessibleVisitAssessment): string[] {
+  const labels: string[] = [];
+  if (assessment.accessibility.status === "FAILED") labels.push("무장애 편의시설");
+  if (assessment.weather.status === "FAILED") labels.push("날씨");
+  if (assessment.festivalRisk.status === "FAILED") labels.push("문화축제");
+  if (
+    assessment.visit.travelerType === "POWER_WHEELCHAIR" &&
+    assessment.chargers.status === "FAILED"
+  ) {
+    labels.push("전동휠체어 충전소");
+  }
+  return labels;
+}
+
+function findUnknownPriorityFacilities(assessment: AccessibleVisitAssessment): string[] {
+  return facilityPriorities[assessment.visit.travelerType]
+    .filter((key) => {
+      const status = assessment.accessibility.facilities[key].status;
+      return status === "NOT_PROVIDED" || status === "CONFLICTING";
+    })
+    .map((key) => facilityLabels[key]);
+}
+
+export function buildAccessibleVisitCopyText(assessment: AccessibleVisitAssessment): string {
+  const preparation = buildPreparationItems(assessment).join(" · ");
+  return [
+    `**${assessment.destination.name}**`,
+    ...(assessment.destination.address !== undefined ? [assessment.destination.address] : []),
+    `${formatVisitDate(assessment.visit.date)} · ${travelerLabels[assessment.visit.travelerType]}`,
+    overallLabels[assessment.overallAssessment.status],
+    buildOverallReason(assessment),
+    `출발 전 확인: ${preparation}`,
+  ].join("\n");
+}
+
+function addAccessibilityPreparation(items: string[], assessment: AccessibleVisitAssessment): void {
+  const unknownLabels = facilityPriorities[assessment.visit.travelerType]
+    .filter((key) => {
+      const status = assessment.accessibility.facilities[key].status;
+      return status === "NOT_PROVIDED" || status === "CONFLICTING";
+    })
+    .slice(0, 2)
+    .map((key) => facilityLabels[key]);
+  if (unknownLabels.length > 0) {
+    items.push(`${unknownLabels.join(" · ")} 이용 가능 여부 확인`);
+  }
+}
+
+function addWeatherPreparation(items: string[], assessment: AccessibleVisitAssessment): void {
+  const riskType = selectPrimaryWeatherRisk(assessment.weather.risk.riskTypes);
+  if (riskType === undefined) return;
+  const travelerType = assessment.visit.travelerType;
+  if (riskType === "HEAT") items.push("물 · 그늘 · 냉방 휴식 공간 준비");
+  if (riskType === "COLD") items.push("방한용품과 실내 대기 장소 준비");
+  if (riskType === "SNOW" || riskType === "ICY_ROAD") {
+    items.push("경사로 · 보도 결빙 상태 확인");
+  }
+  if (riskType === "RAIN" || riskType === "HEAVY_RAIN") {
+    items.push(
+      travelerType === "POWER_WHEELCHAIR" || travelerType === "MANUAL_WHEELCHAIR"
+        ? "우비 · 휠체어 방수커버 준비"
+        : travelerType === "STROLLER"
+          ? "우비 · 유모차 레인커버 준비"
+          : "우산 · 우비 준비",
+    );
+  }
 }
 
 function selectVisitForecast(
   forecasts: DailyWeatherForecast[],
   visitDate: string,
 ): DailyWeatherForecast | undefined {
-  return forecasts.find((forecast) => forecast.forecastDate === visitDate) ?? forecasts[0];
+  return forecasts.find((forecast) => forecast.forecastDate === visitDate);
 }
 
-function selectNearestCharger(chargers: ChargerSummary[]): ChargerSummary | undefined {
-  return chargers.toSorted((left, right) => left.distanceKm - right.distanceKm)[0];
+function selectPrimaryWeatherRisk(riskTypes: WeatherRiskType[]): WeatherRiskType | undefined {
+  return weatherRiskPriority.find((riskType) => riskTypes.includes(riskType));
+}
+
+function formatWeatherCause(riskType: WeatherRiskType): string {
+  const causes: Readonly<Record<WeatherRiskType, string>> = {
+    HEAT: "폭염 수준 기온",
+    COLD: "한파 수준 기온",
+    RAIN: "비 예보",
+    HEAVY_RAIN: "강한 비 예보",
+    SNOW: "눈 예보",
+    ICY_ROAD: "노면 결빙 가능성",
+  };
+  return causes[riskType];
 }
 
 function sortFestivalsByDistance(festivals: NearbyFestival[]): NearbyFestival[] {
@@ -531,44 +431,6 @@ function sortFestivalsByDistance(festivals: NearbyFestival[]): NearbyFestival[] 
       (left.distanceKm ?? Number.POSITIVE_INFINITY) -
       (right.distanceKm ?? Number.POSITIVE_INFINITY),
   );
-}
-
-function getWeatherIcon(riskType: WeatherRiskType | undefined): string {
-  if (riskType === "HEAT") return "☀️";
-  if (riskType === "COLD") return "🥶";
-  if (riskType === "SNOW") return "❄️";
-  if (riskType === "ICY_ROAD") return "🧊";
-  if (riskType === "RAIN" || riskType === "HEAVY_RAIN") return "🌧";
-  return "🌤";
-}
-
-function getDefaultOverallReason(status: VisitAssessmentStatus): string {
-  if (status === "LIKELY_ACCESSIBLE") return "현재 확인된 정보에서는 큰 위험 신호가 많지 않아요";
-  if (status === "ACCESSIBLE_WITH_CAUTION") return "확인해야 할 유의사항이 있어요";
-  if (status === "CHECK_REQUIRED") return "일부 정보를 방문 전에 다시 확인하는 게 좋아요";
-  return "확인된 정보가 부족해 방문 전에 한 번 더 확인하는 게 좋아요";
-}
-
-function summaryRow(left: ColWidgetNode, right: ColWidgetNode): WidgetNode {
-  return {
-    type: "Row",
-    gap: 8,
-    align: "stretch",
-    children: [left, right],
-  };
-}
-
-function summaryBox(heading: string, lines: string[]): ColWidgetNode {
-  return {
-    type: "Col",
-    gap: 4,
-    padding: 10,
-    flex: 1,
-    align: "stretch",
-    radius: "md",
-    background: "#F5F7FA",
-    children: [text(heading, "sm", "semibold"), ...lines.map((line) => text(line, "sm"))],
-  };
 }
 
 function badge(status: VisitAssessmentStatus): BadgeWidgetNode {
@@ -586,14 +448,14 @@ function title(value: string, size: "md" | "xl"): WidgetNode {
 
 function text(
   value: string,
-  size: "sm" | "md" | "lg",
+  size: "sm" | "md",
   weight: TextWidgetNode["weight"] = "normal",
 ): TextWidgetNode {
   return { type: "Text", value, size, weight };
 }
 
 function caption(value: string): WidgetNode {
-  return { type: "Caption", value, size: "md", color: "#667085" };
+  return { type: "Caption", value, size: "sm", color: "#667085" };
 }
 
 function divider(): WidgetNode {
@@ -605,45 +467,21 @@ function formatVisitDate(visitDate: string): string {
   return `${Number(month)}월 ${Number(day)}일`;
 }
 
-function formatDistance(distanceKm: number): string {
+export function formatDistance(distanceKm: number): string {
+  if (distanceKm < 1) {
+    return `${Math.max(1, Math.round(distanceKm * 1000))}m`;
+  }
   return `${Math.round(distanceKm * 10) / 10}km`;
 }
 
-function uniqueFacilities(keys: FacilityKey[]): FacilityKey[] {
-  return [...new Set(keys)];
-}
-
-function isWheelchairTraveler(travelerType: TravelerType): boolean {
-  return travelerType === "POWER_WHEELCHAIR" || travelerType === "MANUAL_WHEELCHAIR";
+function normalizeDescription(value: string): string {
+  return value.trim().replaceAll(/[.!?。]+$/g, "");
 }
 
 function joinKorean(values: string[]): string {
   return values.length <= 1 ? (values[0] ?? "") : `${values[0]}와 ${values[1]}`;
 }
 
-function trimSentenceEnding(value: string): string {
-  return value.trim().replaceAll(/[.!?。]+$/g, "");
-}
-
-function formatReportedDescription(value: string): string {
-  const description = trimSentenceEnding(value);
-  const endings: ReadonlyArray<readonly [RegExp, string]> = [
-    [/가능함$/, "가능하다고"],
-    [/있음$/, "있다고"],
-    [/없음$/, "없다고"],
-    [/가능$/, "가능하다고"],
-    [/됨$/, "된다고"],
-  ];
-
-  for (const [pattern, replacement] of endings) {
-    if (pattern.test(description)) {
-      return `${description.replace(pattern, replacement)} 안내돼요`;
-    }
-  }
-
-  return `${description} 내용으로 안내돼요`;
-}
-
-function stripLeadingEmoji(value: string): string {
-  return value.replace(/^[^가-힣A-Za-z0-9]+\s*/, "");
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter((value) => value.length > 0))];
 }
