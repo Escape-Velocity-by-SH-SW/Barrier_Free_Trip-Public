@@ -30,7 +30,8 @@ nationwide page wave 최대 3초 × 여러 wave
 
 - `performanceConfig.overallDeadlineMs = 2_700`
 - 종합 service의 `runWithDeadline()`이 전체 종료 시각과 취소 신호를 담은 `OperationContext` 생성
-- 개별 네 Tool service도 `runWithDeadline()`으로 같은 2.7초 정책 적용
+- 종합 service의 네 source는 `min(2,000ms, parent remaining - 400ms)` soft deadline 적용
+- 개별 전용 Tool service는 기존 2.7초 hard deadline 정책 유지
 - Repository port의 optional context를 adapter와 API client까지 전달
 - `FetchHttpClient`가 HTTP 호출 한 번의 1,500ms 제한과 전체 남은 시간 중 더 짧은 값 사용
 - 전체 취소 신호를 내부 `AbortController`에 전달해 실제 `fetch` 중단
@@ -69,6 +70,10 @@ runWithDeadline
 ↓ OperationContext
 DestinationResolver → repository → adapter → API client
 ↓
+assessResolvedDestination
+├─ sourceBudget = min(2000, parent remaining - 400)
+└─ source별 runWithDeadline + Promise.allSettled
+↓
 FetchHttpClient.requestOnce
 ├─ remaining = deadlineAtMs - Date.now()
 ├─ attemptTimeout = min(1500, remaining)
@@ -85,12 +90,13 @@ HTTP 한 번의 제한만 줄이면 1,500ms보다 느리지만 정상인 응답�
 조회 시간은 여전히 더해진다. 반대로 전체 종료 시간만 두고 HTTP 취소를 연결하지 않으면 사용자에게
 응답한 뒤에도 `fetch`가 연결과 API 호출 한도를 계속 사용한다. 그래서 두 제한을 함께 사용했다.
 
-2.7초는 Kakao p99 3초 목표에서 응답을 합치고 전송할 300ms를 남긴 값이다. 실제 운영 응답 시간을
-측정해 조정해야 하지만, 처음부터 목표를 넘는 5초 같은 값은 쓰지 않았다.
+2.7초는 Kakao p99 3초 목표에서 300ms margin을 둔 hard deadline이다. 이와 별도로 source가 결과
+조합까지 점유하지 않도록 400ms response reserve를 둔다. 실제 운영 응답 시간을 측정해 조정해야
+하지만 근거 없이 hard deadline을 늘리지 않는다.
 
 ### 6) 장점과 한계
 
-- 느리지만 결국 성공할 API를 1,500ms/2.7초에 중단할 수 있다.
+- 느리지만 결국 성공할 API를 HTTP/source/hard deadline 중 먼저 오는 시점에 중단할 수 있다.
 - AbortSignal을 무시하는 CPU 작업이나 third-party Promise는 deadline만으로 강제 종료할 수 없다.
 - Single-flight 최초 caller의 signal이 공유 Promise에 영향을 주는 한계가 있다.
 - 2.7초는 운영 측정 전의 정책값이며 공공 API가 이 시간 안에 응답한다는 보장은 아니다.
@@ -99,6 +105,7 @@ HTTP 한 번의 제한만 줄이면 1,500ms보다 느리지만 정상인 응답�
 ### 7) 실패 상황
 
 - Per-request 1,500ms 초과: `HttpRequestError(kind="TIMEOUT")`
+- Source soft deadline 초과: 해당 source만 `FAILED`, partial assessment 계속
 - Overall 2.7초 초과: context signal abort, 진행 fetch 중단
 - Retry 대기 중 abort: `waitForRetry()`가 timer/listener 정리 후 reject
 - Remaining 0: 외부 요청을 시작하지 않고 즉시 `TIMEOUT`으로 종료
@@ -106,10 +113,9 @@ HTTP 한 번의 제한만 줄이면 1,500ms보다 느리지만 정상인 응답�
 
 ### 8) 테스트
 
-`deadline.test.ts`는 모든 단계가 같은 종료 시각을 쓰고 취소 신호를 받는 작업이 중단되는지 확인한다.
-`visit-assessment.service.test.ts`는 느린 축제 조회를 테스트용 30ms 종료 시간으로 중단하고 200ms
-안에 다른 데이터를 유지하는지 본다. `http-client.test.ts`는 상위 요청의 취소가 HTTP 시간 초과로
-잘못 분류되지 않는지, 이미 취소된 경우 재시도가 시작되지 않는지 검증한다.
+저장소 정책에 따라 테스트 파일은 커밋하지 않는다. `/tmp` controllable promise 검증에서 source
+soft timeout, 복수 source timeout, 늦은 Destination 뒤 budget 축소, parent abort와 hard deadline 전
+partial 반환을 확인한다.
 
 ### 9) 내가 반드시 이해해야 할 코드
 
@@ -135,15 +141,16 @@ HTTP timeout은 외부 요청 한 번의 제한이고, 전체 종료 시간은 M
 ### 1) 기존 문제
 
 종합 service에는 이미 `Promise.allSettled`와 데이터 종류별 실패 처리가 있었다. 그러나 Tool 전체
-종료 시간과 여러 장소 후보 개념이 없어, 느린 데이터를 언제 포기하고 한 장소의 검색 실패를 다른
-장소와 어떻게 분리할지 정하지 못했다.
+종료 시간과 여러 장소 후보 개념은 있었지만 source별 soft deadline이 없어, 한 Promise가 hard
+deadline까지 settle되지 않으면 `allSettled` 뒤의 partial 조합에 도달하지 못했다.
 
 ### 2) 적용한 해결 방법
 
 기존 데이터 상태와 `Promise.allSettled`를 재사용했다. 공개 결과에 새 `TIMEOUT` 값을 추가하지
-않고, 시간 초과된 데이터는 현재 계약의 `FAILED`로 표시한다. 정확한 원인은 요약 로그의 `timeouts`
-횟수로 확인한다. 여러 장소 요청은 후보마다 `SUCCESS/NO_DATA/AMBIGUOUS_DESTINATION/FAILED` 결과를
-만들고, 평가된 후보에는 네 종류의 결과를 모두 남긴다.
+않고, 시간 초과된 데이터는 현재 계약의 `FAILED`로 표시한다. 정확한 원인은
+`source.summary.outcome=TIMEOUT|PARENT_ABORT`와 downstream outcome으로 확인한다. 여러 장소 요청은
+후보마다 `SUCCESS/NO_DATA/AMBIGUOUS_DESTINATION/FAILED` 결과를 만들고, 평가된 후보에는 네 종류의
+결과를 모두 남긴다.
 
 ### 3) 핵심 개념
 
@@ -208,9 +215,9 @@ AccessibleVisitAssessment
 
 ### 8) 테스트
 
-`visit-assessment.service.test.ts`의 slow festival 사례는 accessibility `SUCCESS`, weather
-`AVAILABLE`, festival `FAILED`, overall `CHECK_REQUIRED`를 검증한다. 같은 service를 batch로 호출해
-전체 상태가 `PARTIAL_SUCCESS`이고 성공한 데이터가 보존되는지도 확인한다.
+`/tmp` deterministic 검증의 slow Festival 사례는 accessibility `SUCCESS`, weather `AVAILABLE`,
+festival `FAILED`, overall `CHECK_REQUIRED`와 valid Widget JSON을 확인한다. Weather와 Festival을
+함께 지연시킨 경우에도 나머지 두 source를 보존한다.
 
 ### 9) 내가 반드시 이해해야 할 코드
 
@@ -220,9 +227,9 @@ AccessibleVisitAssessment
 - 같은 파일
   - 함수: `calculateOverallStatus`, `getBatchOverallStatus`
   - 이유: 데이터 일부 실패와 장소 후보 일부 실패를 서로 다른 수준에서 요약한다.
-- 파일: `src/application/services/visit-assessment.service.test.ts`
-  - 테스트: slow festival deadline
-  - 이유: partial failure의 기대 결과가 가장 명확하다.
+- 문서: `docs/performance/12-assessment-deadline-stabilization.md`
+  - 항목: deterministic deadline/widget 검증
+  - 이유: 커밋하지 않는 검증 범위와 기대 결과를 정리한다.
 
 ### 10) 면접/설명용 정리
 

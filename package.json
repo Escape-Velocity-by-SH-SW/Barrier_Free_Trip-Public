@@ -17,6 +17,10 @@
     "start:local": "node --env-file-if-exists=.env dist/http-main.js",
     "predev:observe": "npm run build",
     "dev:observe": "node scripts/dev-observe.mjs",
+    "prebenchmark:assessment": "npm run build",
+    "benchmark:assessment": "node scripts/benchmark-assessment.mjs",
+    "preverify:festival-filters": "npm run build",
+    "verify:festival-filters": "node scripts/verify-festival-filters.mjs",
     "logs": "node scripts/logs.mjs"
   },
   "dependencies": {

@@ -21,8 +21,14 @@ export class FestivalAdapter implements FestivalRepository {
       readonly dateIndex: CachedLoaderOptions;
     },
   ) {
-    this.datasetLoader = new CachedLoader("festival", cacheOptions.dataset);
-    this.dateIndexLoader = new CachedLoader("festival", cacheOptions.dateIndex);
+    this.datasetLoader = new CachedLoader("festival", {
+      ...cacheOptions.dataset,
+      cacheLayer: "dataset",
+    });
+    this.dateIndexLoader = new CachedLoader("festival", {
+      ...cacheOptions.dateIndex,
+      cacheLayer: "dateIndex",
+    });
   }
 
   async findNearby(

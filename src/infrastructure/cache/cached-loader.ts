@@ -11,6 +11,7 @@ import {
 
 export interface CachedLoaderOptions extends BoundedTtlCacheOptions {
   readonly maxInFlight?: number;
+  readonly cacheLayer?: string;
 }
 
 /** Combines bounded TTL caching with a bounded, self-cleaning single-flight registry. */
@@ -18,6 +19,7 @@ export class CachedLoader<TKey, TValue> {
   private readonly cache: BoundedTtlCache<TKey, TValue>;
   private readonly inFlight = new Map<TKey, Promise<TValue>>();
   private readonly maxInFlight: number;
+  private readonly cacheLayer: string | undefined;
 
   constructor(
     private readonly source: DownstreamSource,
@@ -25,6 +27,7 @@ export class CachedLoader<TKey, TValue> {
   ) {
     this.cache = new BoundedTtlCache(options);
     this.maxInFlight = options.maxInFlight ?? options.maxEntries;
+    this.cacheLayer = options.cacheLayer;
   }
 
   async load(
@@ -34,14 +37,14 @@ export class CachedLoader<TKey, TValue> {
   ): Promise<TValue> {
     const cached = this.readCache(key);
     if (cached !== undefined) {
-      context?.telemetry?.recordCache(this.source, "hit");
+      context?.telemetry?.recordCache(this.source, "hit", this.getTelemetryDetails());
       return cached;
     }
-    context?.telemetry?.recordCache(this.source, "miss");
+    context?.telemetry?.recordCache(this.source, "miss", this.getTelemetryDetails());
 
     const existing = this.inFlight.get(key);
     if (existing !== undefined) {
-      context?.telemetry?.recordSingleFlightJoin(this.source);
+      context?.telemetry?.recordSingleFlightJoin(this.source, this.getTelemetryDetails());
       return existing;
     }
 
@@ -69,6 +72,10 @@ export class CachedLoader<TKey, TValue> {
     } catch {
       return undefined;
     }
+  }
+
+  private getTelemetryDetails(): { readonly cacheLayer?: string } {
+    return this.cacheLayer === undefined ? {} : { cacheLayer: this.cacheLayer };
   }
 
   private writeCache(key: TKey, value: TValue, context: OperationContext | undefined): void {

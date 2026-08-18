@@ -1,9 +1,17 @@
-import type { OperationContext } from "../ports/operation-context.js";
+import type { DeadlineTelemetryDetails, OperationContext } from "../ports/operation-context.js";
+
+export class DeadlineExceededError extends Error {
+  constructor() {
+    super("MCP tool deadline exceeded.");
+    this.name = "DeadlineExceededError";
+  }
+}
 
 export async function runWithDeadline<TResult>(
   timeoutMs: number,
   operation: (context: OperationContext) => Promise<TResult>,
   baseContext: OperationContext = {},
+  telemetryDetails: DeadlineTelemetryDetails = {},
 ): Promise<TResult> {
   if (baseContext.signal?.aborted === true) {
     throw toAbortError(baseContext.signal.reason);
@@ -17,8 +25,8 @@ export async function runWithDeadline<TResult>(
   );
   const remainingMs = deadlineAtMs - Date.now();
   if (remainingMs <= 0) {
-    baseContext.telemetry?.recordDeadlineExceeded();
-    throw new Error("MCP tool deadline exceeded.");
+    baseContext.telemetry?.recordDeadlineExceeded(telemetryDetails);
+    throw new DeadlineExceededError();
   }
 
   let rejectTermination: (error: Error) => void = () => undefined;
@@ -32,8 +40,8 @@ export async function runWithDeadline<TResult>(
     rejectTermination = reject;
     timeoutId = setTimeout(() => {
       if (controller.signal.aborted) return;
-      const error = new Error("MCP tool deadline exceeded.");
-      baseContext.telemetry?.recordDeadlineExceeded();
+      const error = new DeadlineExceededError();
+      baseContext.telemetry?.recordDeadlineExceeded(telemetryDetails);
       controller.abort(error);
       reject(error);
     }, remainingMs);

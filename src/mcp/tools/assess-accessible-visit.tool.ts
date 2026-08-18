@@ -204,7 +204,10 @@ export function registerAssessAccessibleVisitTool(
         });
 
         const output = {
-          status: "SUCCESS",
+          status:
+            result.overallAssessment.status === "CHECK_REQUIRED"
+              ? ("PARTIAL_SUCCESS" as const)
+              : ("SUCCESS" as const),
           ...result,
         };
 

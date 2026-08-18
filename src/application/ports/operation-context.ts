@@ -1,5 +1,14 @@
 export type DownstreamSource = "tourism" | "accessibility" | "weather" | "charger" | "festival";
 
+export interface CacheTelemetryDetails {
+  readonly cacheLayer?: string;
+}
+
+export interface DeadlineTelemetryDetails {
+  readonly scope?: "tool" | "source";
+  readonly source?: DownstreamSource;
+}
+
 export interface DownstreamTelemetrySnapshot {
   readonly calls: number;
   readonly durationMs: number;
@@ -19,15 +28,19 @@ export interface RequestTelemetrySnapshot {
 }
 
 export interface RequestTelemetry {
-  recordCache(source: DownstreamSource, result: "hit" | "miss"): void;
-  recordSingleFlightJoin(source: DownstreamSource): void;
+  recordCache(
+    source: DownstreamSource,
+    result: "hit" | "miss",
+    details?: CacheTelemetryDetails,
+  ): void;
+  recordSingleFlightJoin(source: DownstreamSource, details?: CacheTelemetryDetails): void;
   recordDownstreamCall(
     source: DownstreamSource,
     durationMs: number,
     outcome: "success" | "failure" | "timeout",
   ): void;
   recordRetry(source: DownstreamSource, delayMs?: number): void;
-  recordDeadlineExceeded(): void;
+  recordDeadlineExceeded(details?: DeadlineTelemetryDetails): void;
   snapshot(): RequestTelemetrySnapshot;
 }
 

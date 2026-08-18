@@ -65,6 +65,8 @@ export function createContainer(env: NodeJS.ProcessEnv = process.env): AppContai
         {
           overallDeadlineMs: performanceConfig.overallDeadlineMs,
           destinationConcurrency: performanceConfig.destinationConcurrency,
+          responseReserveMs: performanceConfig.responseReserveMs,
+          maxSourceBudgetMs: performanceConfig.maxSourceBudgetMs,
         },
       ),
       destinationWeatherToolService: new DestinationWeatherToolService(

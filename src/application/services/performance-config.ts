@@ -1,5 +1,7 @@
 export const performanceConfig = {
   overallDeadlineMs: 2_700,
+  responseReserveMs: 400,
+  maxSourceBudgetMs: 2_000,
   externalApiTimeoutMs: 1_500,
   maxDestinations: 5,
   destinationConcurrency: 2,
