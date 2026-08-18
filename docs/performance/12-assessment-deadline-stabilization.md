@@ -143,6 +143,8 @@ factory를 다시 호출하지 않는다.
 ```bash
 npm run verify:festival-filters
 
+npm run verify:festival-filters -- --execute
+
 npm run verify:festival-filters -- \
   --execute \
   --destination 경복궁 \
@@ -153,8 +155,10 @@ npm run verify:festival-filters -- \
   --radius-km 3
 ```
 
-기본 실행은 dry-run이다. `--execute` 시 Full Scan과 날짜, 도로명+지번 지역, 지역+날짜 후보를 같은
-local active-date/radius filter에 통과시킨 뒤 다음을 출력한다.
+기본 실행은 dry-run이다. 별도 옵션 없는 `--execute`는 경복궁, 한국 기준 다음 날, 서울특별시,
+반경 3km를 사용한다. 옵션을 지정하면 이 기본값을 덮어쓴다. 실행 시 Full Scan과 날짜,
+도로명+지번 지역, 지역+날짜 후보를 같은 local active-date/radius filter에 통과시킨 뒤 다음을
+출력한다.
 
 - nearby Festival identity와 개수
 - missing/additional identity
@@ -173,20 +177,138 @@ npm run benchmark:assessment
 
 npm run benchmark:assessment -- \
   --execute \
-  --destination 경복궁 \
-  --visit-date 2026-08-22 \
-  --traveler-type POWER_WHEELCHAIR \
-  --cold-count 3 \
-  --warm-count 20
+  --cold-runs 20 \
+  --warm-runs 5 \
+  --cold-delay-ms 500
 ```
 
-기본 실행은 dry-run이다. Cold는 매 sample마다 fresh container/cache, Warm은 같은 process/container를
-재사용한다. Source cache HIT/MISS, latency/status/timeout, total latency, partial/deadlineExceeded와
-average/p50/p95/p99를 출력한다. 이 값은 로컬 MCP server 구간이며 Kakao 전체 end-to-end latency가
-아니다. Kakao Preview는 UI와 Tool-call 확인용으로만 사용한다.
+기본 실행은 dry-run이다. `--execute` 시 parent orchestrator가 Cold sample마다 child Node process를
+새로 만들어 module state, connection pool, container와 process-local cache를 모두 초기화한다. API
+부하를 피하려고 child는 순차 실행하며 기본 250 ms 간격을 둔다. Warm은 선택된 child의 Cold 직후
+같은 process/container에서 실행한다.
 
-이번 환경에서는 실제 공공 API benchmark를 실행하지 않았다. 따라서 운영 average/p50/p95/p99와
-Kakao 기준 충족 여부는 미확정이다.
+기본 목적지는 경복궁, 수원화성, 첨성대, 남산서울타워, 해운대해수욕장이고 순환 측정한다. 불국사는
+smoke run에서 DestinationResolver가 확정하지 못해 표본에서 제외했다. 방문일을 생략하면 한국 기준
+내일을 사용한다. `--destination` 또는 comma-separated `--destinations`로 바꿀 수 있다.
+
+각 표본은 Destination resolution과 source별 cache, latency/status/timeout/budget, HTTP attempt,
+retry, first-attempt timeout 및 Festival scan page/request/row를 출력한다. 최종 summary는 source와
+total의 count/average/min/max/p50/p95/p99, timeout/partial/deadline rate를 출력한다.
+
+### 2026-08-19 실제 Public API 측정
+
+측정 방문일은 2026-08-20, 이동 조건은 `POWER_WHEELCHAIR`, 반경은 3 km다. 5개 목적지를 4회씩
+순환해 fresh-process Cold 20회, 각 목적지의 첫 Cold 직후 Warm 1회씩 총 5회를 실행했다.
+
+| Source                 | count |         avg |      min |      p50 |      p95 |      p99 |      max | source timeout |
+| ---------------------- | ----: | ----------: | -------: | -------: | -------: | -------: | -------: | -------------: |
+| Destination resolution |    20 |   329.10 ms |   238 ms |   259 ms |   643 ms | 1,272 ms | 1,272 ms |             0% |
+| Accessibility          |    20 |   113.50 ms |   102 ms |   113 ms |   121 ms |   125 ms |   125 ms |             0% |
+| Weather                |    20 | 1,197.10 ms | 1,035 ms | 1,199 ms | 1,239 ms | 1,323 ms | 1,323 ms |      5% (1/20) |
+| Charger                |    20 |    76.70 ms |    38 ms |    61 ms |   167 ms |   310 ms |   310 ms |             0% |
+| Festival               |    20 |   344.55 ms |   201 ms |   248 ms |   399 ms | 1,795 ms | 1,795 ms |             0% |
+
+Total Cold:
+
+- average 1,558.79 ms
+- min 1,408.50 ms
+- p50 1,473.75 ms
+- p95 2,072.71 ms
+- local sample p99/max 2,309.42 ms
+- hard deadline exceeded 0/20 (0%)
+- partial 1/20 (5%)
+
+Warm 5회는 모두 Destination과 네 source cache hit였고 external factory/HTTP 재호출은 없었다.
+average 1.46 ms, p50 1.41 ms, p95/p99/max 1.59 ms였다.
+
+Weather는 20회 모두 HTTP attempt가 한 번이었고 retry, HTTP-client 자체 timeout,
+first-attempt timeout은 0건이었다. 유일한 Weather source timeout은 Weather API 자체가 2초에
+근접해서가 아니라 Destination resolution이 1,272 ms로 튄 표본에서 source budget이 1,028 ms로
+축소됐기 때문이다. Weather operation은 1,035 ms에 source timer로 종료됐고 Tool은 2,309.42 ms에
+Partial Assessment를 반환했다.
+
+Festival은 매 Cold마다 2 pages/2 API requests/1,300 rows였으며 합계 40 requests/26,000 rows였다.
+19회는 201~399 ms 범위였고 1회는 첫 HTTP attempt timeout 후 한 번 retry해 1,795 ms에 성공했다.
+Festival source timeout이나 partial 원인은 아니었다. 따라서 `KEEP` 판단을 유지한다.
+
+같은 날 기본 경복궁 입력으로 `npm run verify:festival-filters -- --execute`도 실행했다. Full Scan은
+2 requests/1,300 rows/337.16 ms였고 후보들은 모두 `SAMPLE_MATCH`였지만 nearby와 후보 row가 모두
+0인 단일 표본이므로 Full Scan 대체 근거로 사용하지 않는다.
+
+### Cold first-call Tool acceptance
+
+실제 API 측정은 20개 fresh-process 호출에서 hard deadline 초과 0건, partial 1건, 최대
+2,309.42 ms를 확인했다. 별도의 deterministic acceptance는 외부 API 없이 실제 MCP SDK in-memory
+transport로 다음 전체 경로를 첫 `tools/call` 한 번에 검증한다.
+
+```text
+MCP tools/call
+→ assess_accessible_visit handler
+→ VisitAssessmentService
+→ controllable cold source
+→ assessment
+→ createWidgetToolResult
+→ content[0].text Widget envelope
+```
+
+```bash
+npm run verify:cold-first-call
+```
+
+acceptance 정의는 다음과 같다.
+
+```text
+Cold first-call success != 모든 Source SUCCESS
+Cold first-call success = Tool 응답 성공 + valid Widget 반환
+```
+
+따라서 한 개 이상의 downstream source가 timeout/exception으로 `FAILED`가 되어도 첫 호출에서
+`PARTIAL_SUCCESS`, `CHECK_REQUIRED`, 성공 source 데이터, failure caution/unknown 및 valid Widget을
+함께 반환해야 한다. 첫 호출이 실패한 뒤 background cache warming으로 두 번째 warm 호출만 성공하는
+동작은 acceptance로 인정하지 않는다.
+
+검증은 각 Tool 시나리오마다 새 service와 호출 횟수 0인 source를 만들고 `tools/call`을 정확히 한
+번만 보낸다. 모든 source 성공, Festival timeout, Weather timeout, Weather+Festival timeout, 느린
+Destination 이후 축소된 source budget, source exception을 확인한다. 모든 경우 `isError !== true`,
+Widget envelope JSON parse, `widget`, `copy_text`, provider `widget.status` 부재, structuredContent와
+source 상태의 일치, tool hard deadline 미초과를 단언한다. 별도 Festival 검증은 parent abort 시
+incomplete dataset 미저장/in-flight 정리와 cold single-flight 이후 cache hit를 확인한다.
+
+### Weather 호출 체인 판단
+
+```text
+Destination coordinates
+→ Lambert grid 변환(nx, ny)
+→ KMA 발표 baseDate/baseTime 선택
+→ /getVilageFcst, numOfRows=1000
+→ totalCount까지 page 순차 수집
+→ visitDate/category filter
+→ daily forecast mapping
+→ cache
+```
+
+이번 20회는 모두 Weather HTTP request 1회로 끝났다. 공통 HTTP client는 attempt당 최대 1,500 ms,
+일시 오류에 최대 1회 retry를 적용하고 source/parent absolute deadline을 넘지 않는다. Cache key는
+`nx|ny|baseDate|baseTime|visitDate`, TTL은 10분이며 Warm에서 5/5 hit와 HTTP 0회를 확인했다. Grid
+변환과 mapping은 로컬 동기 계산이고 source latency가 HTTP 1회와 거의 겹쳐, 현재 약 1.2초의 주된
+비용은 KMA downstream 응답 대기로 판단한다.
+
+### Merge 판단
+
+결론은 **READY_TO_MERGE_WITH_P1_WEATHER**다.
+
+- Normal Weather p95 1,239 ms/p99 1,323 ms로 2,000 ms 상한에는 여유가 있다.
+- Total p95 2,072.71 ms, local sample p99/max 2,309.42 ms이고 hard deadline 초과는 0건이다.
+- 느린 Destination 때문에 budget이 축소된 실제 표본에서도 hard deadline 대신 Partial Assessment가
+  반환됐다. Partial Widget 경로는 별도의 결정적 검증에서 확인했다.
+- Warm regression은 없다.
+- 따라서 2,700/2,000/400 ms를 이번 브랜치에서 조정하지 않는다.
+- P1에서는 KMA 약 1.2초 downstream latency와 느린 Destination resolution이 겹칠 때의 Weather
+  partial rate를 더 큰 운영 표본으로 관찰한다. 이번 브랜치에서 Weather 구조를 리팩터링하지 않는다.
+
+이 수치는 실제 공공 API를 사용하는 로컬 MCP 서버 Cold/Warm 표본이다. 표본 20개의 p99는 사실상
+상위 outlier이며 통계적으로 안정적인 운영 p99가 아니다. Kakao 전체 end-to-end latency나 운영 p99
+달성을 증명하지 않는다. Kakao Preview는 UI와 Tool-call 확인용으로만 사용한다.
 
 ## 8. Observability
 
@@ -218,12 +340,14 @@ request/row 원문이나 API key를 남기지 않고 scan당 summary 한 줄만 
 
 ## 10. 남은 위험과 P1
 
-- 실제 공공 API 운영 latency 분포는 아직 없다.
-- nationwide Festival Cold scan은 source soft deadline 안에 끝나지 못할 수 있다.
+- 실제 공공 API local Cold 20회는 운영 traffic/시간대/replica 분포를 대표하지 않는다.
+- Destination resolution outlier가 source budget을 줄이면 약 1.2초 Weather가 partial로 전환될 수
+  있다.
+- Festival은 20회 중 한 번 첫 attempt timeout/retry가 발생해 1,795 ms까지 상승했다.
 - process-local cache는 재배포, process 종료, 다른 replica에서 공유되지 않는다.
 - 실제 filter semantics와 대표/경계 case identity 비교 전에는 Full Scan을 대체할 수 없다.
 - Kakao 전체 end-to-end latency는 로컬 benchmark로 측정할 수 없다.
 
-P1은 실제 key가 있는 분리 환경에서 `verify:festival-filters`를 대표/경계 case에 반복 실행하고,
-운영 `source.summary`로 timeout rate를 수집한 뒤 Full Scan 대체 또는 loading 전략을 다시 결정하는
-작업이다.
+P1은 운영 `source.summary`로 Destination/Weather 분포와 partial rate를 더 많이 수집하고 KMA 약
+1.2초 응답 비용을 별도 분석한다. Festival filter는 실제 key가 있는 분리 환경에서 대표/경계 case를
+반복 비교한 뒤에만 Full Scan 대체를 다시 판단한다.

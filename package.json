@@ -18,9 +18,11 @@
     "predev:observe": "npm run build",
     "dev:observe": "node scripts/dev-observe.mjs",
     "prebenchmark:assessment": "npm run build",
-    "benchmark:assessment": "node scripts/benchmark-assessment.mjs",
+    "benchmark:assessment": "node --env-file-if-exists=.env scripts/benchmark-assessment.mjs",
     "preverify:festival-filters": "npm run build",
-    "verify:festival-filters": "node scripts/verify-festival-filters.mjs",
+    "verify:festival-filters": "node --env-file-if-exists=.env scripts/verify-festival-filters.mjs",
+    "preverify:cold-first-call": "npm run build",
+    "verify:cold-first-call": "node scripts/verify-cold-first-call.mjs",
     "logs": "node scripts/logs.mjs"
   },
   "dependencies": {

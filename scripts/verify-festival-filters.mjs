@@ -18,6 +18,9 @@ if (options.help) {
 }
 
 async function verify(options) {
+  process.stdout.write(
+    `destination=${options.destination} visitDate=${options.visitDate} region=${options.region} radiusKm=${options.radiusKm}\n`,
+  );
   const client = createClient();
   const baseline = await measure("FULL_SCAN", async () => {
     const response = await client.getAllFestivals();
@@ -174,11 +177,11 @@ function parseArgs(args) {
   return {
     execute: values.get("--execute") === true,
     help: values.get("--help") === true,
-    destination: values.get("--destination"),
-    visitDate: values.get("--visit-date"),
-    region: values.get("--region"),
-    latitude: Number(values.get("--latitude")),
-    longitude: Number(values.get("--longitude")),
+    destination: values.get("--destination") ?? "경복궁",
+    visitDate: values.get("--visit-date") ?? getTomorrowInKorea(),
+    region: values.get("--region") ?? "서울특별시",
+    latitude: Number(values.get("--latitude") ?? 37.5796),
+    longitude: Number(values.get("--longitude") ?? 126.977),
     radiusKm: Number(values.get("--radius-km") ?? 3),
   };
 }
@@ -211,10 +214,19 @@ function round(value) {
   return Math.round(value * 100) / 100;
 }
 
+function getTomorrowInKorea() {
+  const koreaNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  koreaNow.setDate(koreaNow.getDate() + 1);
+  const year = koreaNow.getFullYear();
+  const month = String(koreaNow.getMonth() + 1).padStart(2, "0");
+  const day = String(koreaNow.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const helpText = `Usage:
   npm run verify:festival-filters -- [--execute] [options]
 
-Required with --execute:
+Defaults (override as needed):
   --destination <name>
   --visit-date <YYYY-MM-DD>
   --region <address prefix>     예: 서울특별시
