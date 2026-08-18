@@ -95,13 +95,26 @@ export class FestivalApiClient {
   }
 }
 
+/**
+ * 전체 스캔에 fullScanTimeoutMs만큼의 예산을 주되, caller의 실제 남은 deadline보다 길게
+ * 늘리지는 않는다. signal도 그대로 상속해서, caller가 취소되면 스캔 중인 개별 HTTP 요청도
+ * 즉시 abort되게 한다. (그렇지 않으면 caller가 이미 timeout으로 실패한 뒤에도 전체 스캔이
+ * 최대 10초까지 caller와 무관하게 백그라운드에서 계속 진행되는 문제가 있었다.)
+ */
 function createFullScanContext(context: OperationContext | undefined): OperationContext {
+  const requestedDeadlineAtMs = Date.now() + fullScanTimeoutMs;
+  const deadlineAtMs =
+    context?.deadlineAtMs !== undefined
+      ? Math.min(context.deadlineAtMs, requestedDeadlineAtMs)
+      : requestedDeadlineAtMs;
+
   return {
     ...(context?.requestId !== undefined ? { requestId: context.requestId } : {}),
     ...(context?.tool !== undefined ? { tool: context.tool } : {}),
+    ...(context?.signal !== undefined ? { signal: context.signal } : {}),
     ...(context?.telemetry !== undefined ? { telemetry: context.telemetry } : {}),
     ...(context?.logWriter !== undefined ? { logWriter: context.logWriter } : {}),
-    deadlineAtMs: Date.now() + fullScanTimeoutMs,
+    deadlineAtMs,
   };
 }
 
