@@ -65,7 +65,8 @@ cache 없이 request마다 반복되었다.
   특수문자 삭제는 실제 장소를 과도하게 합칠 수 있어 하지 않는다.
 - Cache: process-local bounded TTL LRU다. cache miss는 원 repository 경로를 실행하며 cache
   오류는 lookup 오류로 전파하지 않는다.
-- Single-flight: cache key별 Promise를 공유하고 성공/실패 모두 `finally`에서 제거한다. in-flight
+- Single-flight: cache key별 operation을 공유하되 caller별 waiter 취소는 분리한다. 활성 waiter가 모두
+  취소될 때만 shared operation을 abort하고, 성공/실패 모두 `finally`에서 제거한다. in-flight
   registry도 최대 entry 수로 제한하고 초과 시 cache 없는 정상 경로로 실행한다.
 - Festival: 성공 가능성이 낮은 focused 2-call 경로를 제거했다. 전국 dataset을 1,000건/page로
   가져와 6시간 cache하고 방문일 index를 별도 bounded cache한다. 후보 5개가 같은 날짜면 dataset
@@ -80,8 +81,10 @@ cache 없이 request마다 반복되었다.
   영역을 `FAILED`로 바꾼다. 성공한 영역으로 assessment와 SUMMARY Widget을 hard deadline 전에
   생성한다. Destination 확정 뒤 남은 시간이 reserve 이하라면 새 source 요청을 시작하지 않는다.
 - Circuit breaker/stale cache: 이번에는 미적용했다. replica별 작은 process cache 환경에서 상태
-  튜닝과 stale 표시 계약의 복잡도가 이득보다 크고, 1,500 ms source timeout + 2.7초 deadline +
-  partial result가 우선적인 장애 격리를 제공한다.
+  튜닝과 stale 표시 계약의 복잡도가 이득보다 크고,
+  `min(2,000 ms, parent remaining - 400 ms reserve)` source soft deadline과 2.7초 hard deadline,
+  partial result가 우선적인 장애 격리를 제공한다. 1,500 ms는 source timeout이 아니라 개별 HTTP
+  attempt의 최대 timeout이다.
 
 ## 4. Cache matrix
 

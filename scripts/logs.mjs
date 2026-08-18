@@ -237,7 +237,7 @@ npm run logs -- tail
 npm run logs -- errors
   오류 / timeout / retry / 부분 결과만 표시
 
-npm run logs -- weather|festival|charger|tourism
+npm run logs -- accessibility|weather|festival|charger|tourism
   선택한 외부 데이터 source 로그만 표시
 
 npm run logs -- request <id>

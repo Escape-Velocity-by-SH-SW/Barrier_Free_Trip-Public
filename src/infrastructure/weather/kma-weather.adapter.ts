@@ -30,7 +30,9 @@ export class KmaWeatherAdapter implements WeatherRepository {
     const baseTime = resolveKmaForecastBaseTime(this.clock());
     const key = [grid.nx, grid.ny, baseTime.baseDate, baseTime.baseTime, query.visitDate].join("|");
 
-    return this.loader.load(key, context, () => this.fetchForecast(query, grid, baseTime, context));
+    return this.loader.load(key, context, (sharedContext) =>
+      this.fetchForecast(query, grid, baseTime, sharedContext),
+    );
   }
 
   private async fetchForecast(

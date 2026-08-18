@@ -34,7 +34,9 @@ export class WheelChairChargerAdapter implements WheelchairChargerRepository {
       query.pageNo ?? "default",
       query.numOfRows ?? "default",
     ].join("|");
-    return this.loader.load(key, context, () => this.fetchByRegion(query, context));
+    return this.loader.load(key, context, (sharedContext) =>
+      this.fetchByRegion(query, sharedContext),
+    );
   }
 
   private async fetchByRegion(

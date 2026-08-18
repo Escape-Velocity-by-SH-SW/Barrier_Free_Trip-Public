@@ -23,10 +23,20 @@ async function verify(options) {
   );
   const client = createClient();
   const baseline = await measure("FULL_SCAN", async () => {
-    const response = await client.getAllFestivals();
+    let apiRequestCount;
+    const response = await client.getAllFestivals({
+      logWriter: (event) => {
+        if (event.event === "festival.scan.summary") {
+          apiRequestCount = event.apiRequestCount;
+        }
+      },
+    });
+    if (!Number.isInteger(apiRequestCount)) {
+      throw new Error("Festival full scan did not emit apiRequestCount.");
+    }
     return {
       festivals: mapFestivalResponseToSourceData(response),
-      requestCount: Math.max(1, Math.ceil(Number(response.totalCount ?? 0) / 1000)),
+      requestCount: apiRequestCount,
       receivedRowCount: response.data?.length ?? 0,
     };
   });
@@ -89,11 +99,16 @@ async function loadAllMatching(client, filters) {
   const first = await client.getFestivals({ ...filters, page: 1, perPage: 1000 });
   const totalCount = Number(first.totalCount ?? first.data?.length ?? 0);
   const pageCount = Math.max(1, Math.ceil(totalCount / 1000));
-  const remaining = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, index) =>
-      client.getFestivals({ ...filters, page: index + 2, perPage: 1000 }),
-    ),
-  );
+  const pages = Array.from({ length: pageCount - 1 }, (_, index) => index + 2);
+  const remaining = [];
+  for (let index = 0; index < pages.length; index += 4) {
+    const batch = pages.slice(index, index + 4);
+    remaining.push(
+      ...(await Promise.all(
+        batch.map((page) => client.getFestivals({ ...filters, page, perPage: 1000 })),
+      )),
+    );
+  }
   const responses = [first, ...remaining];
   return {
     festivals: mapFestivalResponseToSourceData({

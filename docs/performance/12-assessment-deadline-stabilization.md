@@ -195,10 +195,11 @@ smoke run에서 DestinationResolver가 확정하지 못해 표본에서 제외�
 retry, first-attempt timeout 및 Festival scan page/request/row를 출력한다. 최종 summary는 source와
 total의 count/average/min/max/p50/p95/p99, timeout/partial/deadline rate를 출력한다.
 
-### 2026-08-19 실제 Public API 측정
+### 실제 Public API 측정
 
-측정 방문일은 2026-08-20, 이동 조건은 `POWER_WHEELCHAIR`, 반경은 3 km다. 5개 목적지를 4회씩
-순환해 fresh-process Cold 20회, 각 목적지의 첫 Cold 직후 Warm 1회씩 총 5회를 실행했다.
+실행일은 2026-08-19 Asia/Seoul(2026-08-18 UTC)이고 측정 방문일은 2026-08-20이다. 이동 조건은
+`POWER_WHEELCHAIR`, 반경은 3 km다. 5개 목적지를 4회씩 순환해 fresh-process Cold 20회, 각
+목적지의 첫 Cold 직후 Warm 1회씩 총 5회를 실행했다.
 
 | Source                 | count |         avg |      min |      p50 |      p95 |      p99 |      max | source timeout |
 | ---------------------- | ----: | ----------: | -------: | -------: | -------: | -------: | -------: | -------------: |
@@ -271,8 +272,9 @@ Cold first-call success = Tool 응답 성공 + valid Widget 반환
 번만 보낸다. 모든 source 성공, Festival timeout, Weather timeout, Weather+Festival timeout, 느린
 Destination 이후 축소된 source budget, source exception을 확인한다. 모든 경우 `isError !== true`,
 Widget envelope JSON parse, `widget`, `copy_text`, provider `widget.status` 부재, structuredContent와
-source 상태의 일치, tool hard deadline 미초과를 단언한다. 별도 Festival 검증은 parent abort 시
-incomplete dataset 미저장/in-flight 정리와 cold single-flight 이후 cache hit를 확인한다.
+source 상태의 일치, tool hard deadline 미초과를 단언한다. 별도 Festival 검증은 caller별 취소를
+분리해 활성 waiter가 남아 있으면 공유 scan을 유지하고, 마지막 waiter abort 시 incomplete dataset
+미저장/in-flight 정리와 cold single-flight 이후 cache hit를 확인한다.
 
 ### Weather 호출 체인 판단
 
@@ -312,12 +314,13 @@ Destination coordinates
 
 ## 8. Observability
 
-- `source.summary`: source, budgetMs, durationMs, status,
-  `SUCCESS|ERROR|TIMEOUT|PARENT_ABORT`, timeout, parentAbort
+- `source.summary`: `source`, `budgetMs`, `durationMs`,
+  `outcome=SUCCESS|ERROR|TIMEOUT|PARENT_ABORT`, `timeout`, `parentAbort`
 - `deadline.exceeded`: `scope=tool|source`, source
 - `cache.hit|cache.miss|singleflight.join`: Festival이면 `cacheLayer=dataset|dateIndex`
-- `festival.scan.summary`: duration, page count, API request count, received row count, status
-- `tool.summary`: total duration, partial count, source status counts, cache/downstream counters
+- `festival.scan.summary`: `durationMs`, `pageCount`, `apiRequestCount`, `receivedRowCount`, `status`
+- `tool.summary`: `durationMs`, `partialResultCount`, `sourceStatuses`, `cacheHit`, `cacheMiss`,
+  `singleFlightJoin` 및 downstream counters
 
 `npm run logs -- request <requestId>`와 source별 조회에서 이 이벤트를 확인한다. Production log는
 request/row 원문이나 API key를 남기지 않고 scan당 summary 한 줄만 추가한다.
@@ -331,12 +334,13 @@ request/row 원문이나 API key를 남기지 않고 scan당 summary 한 줄만 
 - Weather와 Festival이 지연되면 두 영역만 `FAILED`
 - source exception은 해당 영역만 `FAILED`
 - Destination이 reserve 직전까지 지연되면 새 source operation을 시작하지 않음
-- Festival client가 parent signal과 더 이른 deadline을 그대로 사용함
+- Festival shared load가 caller별 취소를 분리하고 마지막 waiter 취소 시 aggregate signal을 abort함
 - cache hit에서 factory 재호출 없음
 - 동일 cold key가 single-flight factory 하나를 공유함
 - Partial Assessment Widget JSON parse, envelope/copy_text, provider `widget.status` 부재
 
-검증 스크립트는 저장소 정책에 따라 `/tmp`에서 실행하고 제거한다.
+저수준 deadline 검증은 `/tmp`에서 실행 후 제거하고, cold first-call Tool acceptance는
+`scripts/verify-cold-first-call.mjs`로 유지한다.
 
 ## 10. 남은 위험과 P1
 

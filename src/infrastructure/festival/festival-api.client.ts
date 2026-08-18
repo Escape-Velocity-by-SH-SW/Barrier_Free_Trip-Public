@@ -156,7 +156,7 @@ function writeScanSummary(
 ): void {
   context.logWriter?.({
     timestamp: new Date().toISOString(),
-    level: details.status === "SUCCESS" ? "info" : "error",
+    level: details.status === "SUCCESS" ? "info" : details.status === "ABORTED" ? "warn" : "error",
     event: "festival.scan.summary",
     ...(context.requestId !== undefined ? { requestId: context.requestId } : {}),
     ...(context.tool !== undefined ? { tool: context.tool } : {}),

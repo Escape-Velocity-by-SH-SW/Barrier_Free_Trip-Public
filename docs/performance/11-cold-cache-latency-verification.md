@@ -1,8 +1,16 @@
 # Cold cache latency 검증 보고서
 
-검증 기준은 `develop`의 `perf/verify-cold-cache-latency` 분기 시점 코드다. 실제 공공 API는 호출하지
-않았고, 외부 응답은 controllable Promise와 fake client로 대체했다. 따라서 코드 경로와 상태 전이는
-재현했지만 Kakao Tools Preview 및 운영 공공 API의 실제 p50/p95/p99는 검증 범위가 아니다.
+> **상태: 과거 기준선 보고서이며 현재 동작 문서가 아니다.** 기준 branch는 `develop`, 기준 commit은
+> `9059f99fa3047307aaf4409b0555807c7e1589fc`, 측정 실행일은 2026-08-19 Asia/Seoul
+> (2026-08-18 UTC)이다. 현재 구현과 실제 API 측정은
+> [Assessment deadline 안정화](./12-assessment-deadline-stabilization.md)를 기준으로 한다.
+
+이 기준선에서는 실제 공공 API를 호출하지 않고 외부 응답을 controllable Promise와 fake client로
+대체했다. 아래의 Festival 부모 signal/deadline 단절, 호출 종료 뒤 cache population, Festival
+`cacheLayer` 구분 불가, `source.summary` 부재 및 P0/P1 제안은 모두 위 기준 commit의 상태를 설명한다.
+현재 구현은 Festival cancellation을 공유 waiter 기준으로 전파하고, 취소된 incomplete 결과를 cache에
+저장하지 않으며, `recordCache()`/`getTelemetryDetails()`를 통해 `dataset|dateIndex`를 기록한다. 따라서
+아래 수치와 결론은 회귀 전후 비교용이고 현재 동작이나 운영 p50/p95/p99를 나타내지 않는다.
 
 ## 1. 결론
 
@@ -88,7 +96,8 @@ Festival warm path는 date index가 hit하면 dataset loader까지 내려가지 
 
 ### 측정 조건
 
-- Node process 하나에서 같은 `경복궁`, `2026-08-19`, `POWER_WHEELCHAIR` 요청을 연속 실행했다.
+- Node process 하나에서 같은 `경복궁`, visitDate fixture `2026-08-19`, `POWER_WHEELCHAIR` 요청을 연속
+  실행했다.
 - 실제 `VisitAssessmentService`, `DestinationResolver`, source service, `CachedLoader`,
   `FestivalAdapter`, Widget builder를 사용했다.
 - 외부 repository/client만 고정 지연 stub으로 대체했다.
@@ -226,9 +235,9 @@ Cache는 process-local이다. deadline 뒤 warming이 성공해도 같은 replic
 
 ### 4.5 Observability
 
-현재 로그로 확인 가능한 항목은 다음과 같다.
+기준선 로그로 확인 가능했던 항목은 다음과 같다.
 
-| 항목                                   | 현재 이벤트/필드                                      | 판정 |
+| 항목                                   | 기준선 이벤트/필드                                    | 판정 |
 | -------------------------------------- | ----------------------------------------------------- | ---- |
 | request 연결                           | 모든 이벤트의 `requestId`, `tool`                     | 충분 |
 | cache hit/miss                         | `cache.hit`, `cache.miss` + `source`                  | 충분 |
@@ -241,13 +250,15 @@ Cache는 process-local이다. deadline 뒤 warming이 성공해도 같은 replic
 | cache hit source의 end-to-end latency  | 직접 필드 없음                                        | 부족 |
 | Festival dataset/date-index cache 구분 | 둘 다 `source=festival`                               | 부족 |
 
-현재 원인 검증에는 raw cache/downstream/deadline 이벤트와 deterministic wrapper 측정으로 충분해
-production instrumentation은 추가하지 않았다. 운영에서 cold/warm source별 end-to-end latency를
-지속 수집하려면 `source.summary` 한 종류를 추가하고 `source`, `durationMs`, `status`,
-`signalAborted`, `deadlineExceeded`를 기록하는 것이 최소 변경이다. Festival cache 이벤트에는
-민감하지 않은 `cacheLayer=dataset|dateIndex`를 추가해야 두 miss를 구분할 수 있다.
+당시 원인 검증에는 raw cache/downstream/deadline 이벤트와 deterministic wrapper 측정을 사용했고
+production instrumentation은 추가하지 않았다. 이후 deadline 안정화 구현은 `source.summary`와
+Festival `cacheLayer=dataset|dateIndex`를 추가했으며 현재 필드는 후속 문서의 Observability 절을
+따른다.
 
-## 5. 개선 우선순위
+## 5. 기준선 당시 개선 우선순위
+
+아래 P0와 observability P1은 현재 deadline 안정화 구현에서 반영됐다. 아직 남은 후속 판단은 현재
+동작 문서의 P1 항목을 따른다.
 
 ### P0
 
@@ -283,9 +294,10 @@ bounded refresh 정책, 동시 실행 제한, 상태 로그, shutdown 정책이 
 이번 검증에서는 `overallDeadlineMs`, `externalApiTimeoutMs`, retry, cache TTL, Festival 조회 구조를
 변경하지 않았다.
 
-## 6. 수정이 필요한 파일
+## 6. 기준선 당시 수정 후보
 
-이번 브랜치에서는 검증 보고서와 문서 index만 수정했다. 개선을 적용할 경우 후보는 다음과 같다.
+당시 `perf/verify-cold-cache-latency` 브랜치에서는 검증 보고서와 문서 index만 수정했다. 개선 적용
+후보는 다음과 같았다.
 
 - `src/infrastructure/festival/festival-api.client.ts`: 부모 signal/deadline 상속
 - `src/application/services/visit-assessment.service.ts`: source soft deadline과 source completion 계측

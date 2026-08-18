@@ -35,16 +35,20 @@ export class FestivalAdapter implements FestivalRepository {
     query: FestivalQuery,
     context?: OperationContext,
   ): Promise<FestivalSourceData[]> {
-    const activeFestivals = await this.dateIndexLoader.load(query.visitDate, context, async () => {
-      const festivals = await this.getMappedFestivals(context);
-      return festivals.filter((festival) => isActiveOnVisitDate(festival, query.visitDate));
-    });
+    const activeFestivals = await this.dateIndexLoader.load(
+      query.visitDate,
+      context,
+      async (sharedContext) => {
+        const festivals = await this.getMappedFestivals(sharedContext);
+        return festivals.filter((festival) => isActiveOnVisitDate(festival, query.visitDate));
+      },
+    );
     return filterNearbyFestivals(activeFestivals, query);
   }
 
   private getMappedFestivals(context?: OperationContext): Promise<FestivalSourceData[]> {
-    return this.datasetLoader.load("nationwide", context, async () => {
-      const response = await this.client.getAllFestivals(context);
+    return this.datasetLoader.load("nationwide", context, async (sharedContext) => {
+      const response = await this.client.getAllFestivals(sharedContext);
       return mapFestivalResponseToSourceData(response);
     });
   }
