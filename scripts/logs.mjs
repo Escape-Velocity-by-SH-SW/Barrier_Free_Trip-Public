@@ -3,7 +3,7 @@ import { mkdir, readFile, stat, truncate, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const sourceNames = new Set(["weather", "festival", "charger", "tourism"]);
+const sourceNames = new Set(["accessibility", "weather", "festival", "charger", "tourism"]);
 const defaultLogFile = resolve(process.cwd(), "logs/mcp.ndjson");
 
 export function parseLogLines(text) {
@@ -69,14 +69,24 @@ export function formatEvent(event) {
     const delay = typeof event.delayMs === "number" ? ` delay=${event.delayMs}ms` : "";
     return `[${time}] API  ${text(event.source)} RETRY${delay}${request}`;
   }
+  if (event.event === "source.summary") {
+    const budget = typeof event.budgetMs === "number" ? ` budget=${event.budgetMs}ms` : "";
+    return `[${time}] SOURCE ${text(event.source)} ${outcome}${duration}${budget}${request}`;
+  }
+  if (event.event === "festival.scan.summary") {
+    return `[${time}] FESTIVAL SCAN ${outcome}${duration} pages=${number(event.pageCount)} calls=${number(event.apiRequestCount)} rows=${number(event.receivedRowCount)}${request}`;
+  }
   if (event.event === "cache.hit" || event.event === "cache.miss") {
-    return `[${time}] CACHE ${text(event.source)} ${event.event.endsWith("hit") ? "HIT" : "MISS"}${request}`;
+    const layer = typeof event.cacheLayer === "string" ? ` layer=${event.cacheLayer}` : "";
+    return `[${time}] CACHE ${text(event.source)} ${event.event.endsWith("hit") ? "HIT" : "MISS"}${layer}${request}`;
   }
   if (event.event === "singleflight.join") {
     return `[${time}] CACHE ${text(event.source)} SINGLE-FLIGHT JOIN${request}`;
   }
   if (event.event === "deadline.exceeded") {
-    return `[${time}] TOOL ${text(event.tool)} DEADLINE EXCEEDED${request}`;
+    const scope =
+      event.scope === "source" ? `SOURCE ${text(event.source)}` : `TOOL ${text(event.tool)}`;
+    return `[${time}] ${scope} DEADLINE EXCEEDED${request}`;
   }
   if (event.event === "tool.error") {
     return `[${time}] TOOL ${text(event.tool)} ERROR ${text(event.errorName)}: ${text(event.errorMessage)}${request}`;
@@ -227,7 +237,7 @@ npm run logs -- tail
 npm run logs -- errors
   오류 / timeout / retry / 부분 결과만 표시
 
-npm run logs -- weather|festival|charger|tourism
+npm run logs -- accessibility|weather|festival|charger|tourism
   선택한 외부 데이터 source 로그만 표시
 
 npm run logs -- request <id>

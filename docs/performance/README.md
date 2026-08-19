@@ -23,18 +23,20 @@
 
 ## 상세 문서는 필요할 때 찾아보기
 
-| 궁금한 내용                                | 읽을 문서                                                         |
-| ------------------------------------------ | ----------------------------------------------------------------- |
-| 전체 변경 목록과 호출 흐름                 | [01 전체 변경과 요청 흐름](./01-overview.md)                      |
-| Cache가 없어져도 동작하는 이유와 저장 시간 | [02 서버 메모리 Cache](./02-memory-cache.md)                      |
-| 동시 경복궁 요청 10개를 1회로 합치는 원리  | [03 진행 중 요청 공유](./03-single-flight.md)                     |
-| 후보 5개를 두 개씩 처리하는 이유           | [04 여러 장소와 동시 실행 제한](./04-batch-concurrency.md)        |
-| 2.7초 전체 종료 시간과 일부 실패 처리      | [05 종료 시간과 부분 결과](./05-deadline-partial-result.md)       |
-| 축제 데이터·재시도·HTTP·응답 크기          | [06 외부 API 최적화](./06-external-api-optimization.md)           |
-| `.env`와 운영 환경변수 주입                | [07 환경변수](./07-environment.md)                                |
-| 로그와 모의 성능 테스트 해석               | [08 관측성과 성능 테스트](./08-observability-performance-test.md) |
-| 설계 결정을 문서로 설명하기                | [09 ADR 후보](./09-adr-candidates.md)                             |
-| 제대로 이해했는지 확인하기                 | [10 학습 체크리스트](./10-study-checklist.md)                     |
+| 궁금한 내용                                | 읽을 문서                                                                  |
+| ------------------------------------------ | -------------------------------------------------------------------------- |
+| 전체 변경 목록과 호출 흐름                 | [01 전체 변경과 요청 흐름](./01-overview.md)                               |
+| Cache가 없어져도 동작하는 이유와 저장 시간 | [02 서버 메모리 Cache](./02-memory-cache.md)                               |
+| 동시 경복궁 요청 10개를 1회로 합치는 원리  | [03 진행 중 요청 공유](./03-single-flight.md)                              |
+| 후보 5개를 두 개씩 처리하는 이유           | [04 여러 장소와 동시 실행 제한](./04-batch-concurrency.md)                 |
+| 2.7초 전체 종료 시간과 일부 실패 처리      | [05 종료 시간과 부분 결과](./05-deadline-partial-result.md)                |
+| 축제 데이터·재시도·HTTP·응답 크기          | [06 외부 API 최적화](./06-external-api-optimization.md)                    |
+| `.env`와 운영 환경변수 주입                | [07 환경변수](./07-environment.md)                                         |
+| 로그와 모의 성능 테스트 해석               | [08 관측성과 성능 테스트](./08-observability-performance-test.md)          |
+| 설계 결정을 문서로 설명하기                | [09 ADR 후보](./09-adr-candidates.md)                                      |
+| 제대로 이해했는지 확인하기                 | [10 학습 체크리스트](./10-study-checklist.md)                              |
+| Cold/Warm·Festival deadline 실측 검증      | [11 Cold cache latency 검증](./11-cold-cache-latency-verification.md)      |
+| Source soft deadline과 Festival 최종 판단  | [12 Assessment deadline 안정화](./12-assessment-deadline-stabilization.md) |
 
 ## 코드와 문서를 함께 읽는 방법
 

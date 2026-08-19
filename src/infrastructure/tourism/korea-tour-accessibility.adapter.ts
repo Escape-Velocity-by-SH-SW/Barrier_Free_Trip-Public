@@ -34,14 +34,14 @@ export class KoreaTourAccessibilityAdapter implements TourismAccessibilityReposi
     context?: OperationContext,
   ): Promise<DestinationCandidate[]> {
     const key = normalizeCacheKey(keyword);
-    return this.destinationLoader.load(key, context, async () => {
+    return this.destinationLoader.load(key, context, async (sharedContext) => {
       const response = await this.client.searchKeyword(
         {
           keyword: key,
           contentTypeId: touristAttractionContentTypeId,
           arrange: "A",
         },
-        context,
+        sharedContext,
       );
       return mapSearchKeywordResponseToDestinationCandidates(response, key);
     });
@@ -53,8 +53,8 @@ export class KoreaTourAccessibilityAdapter implements TourismAccessibilityReposi
     context?: OperationContext,
   ): Promise<AccessibilitySourceData> {
     const key = contentId.trim();
-    return this.accessibilityLoader.load(key, context, async () => {
-      const response = await this.client.getDetailWithTour({ contentId }, context);
+    return this.accessibilityLoader.load(key, context, async (sharedContext) => {
+      const response = await this.client.getDetailWithTour({ contentId }, sharedContext);
       return mapDetailWithTourResponseToAccessibilitySourceData(response);
     });
   }

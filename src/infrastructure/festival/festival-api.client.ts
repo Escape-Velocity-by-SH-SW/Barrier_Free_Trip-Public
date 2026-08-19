@@ -17,6 +17,9 @@ export interface FestivalApiRequest {
   perPage?: number;
   venue?: string;
   roadAddress?: string;
+  lotAddress?: string;
+  festivalStartDate?: string;
+  festivalEndDate?: string;
   context?: OperationContext;
 }
 
@@ -53,34 +56,64 @@ export class FestivalApiClient {
 
   async getAllFestivals(context?: OperationContext): Promise<FestivalResponseDto> {
     const scanContext = createFullScanContext(context);
-    const firstPage = await this.getFestivals({
-      page: 1,
-      perPage: this.fullScanPageSize,
-      context: scanContext,
-    });
-    const totalCount = normalizeCount(firstPage.totalCount);
-    const pageCount = Math.ceil(totalCount / this.fullScanPageSize);
+    const startedAt = performance.now();
+    let pageCount = 0;
+    let apiRequestCount = 0;
+    let receivedRowCount = 0;
 
-    if (pageCount <= 1) {
-      return firstPage;
-    }
-
-    const remainingPages = await mapWithConcurrency(
-      Array.from({ length: pageCount - 1 }, (_, index) => index + 2),
-      fullScanConcurrency,
-      (page) =>
-        this.getFestivals({
-          page,
-          perPage: this.fullScanPageSize,
-          context: scanContext,
-        }),
-    );
-
-    return {
-      ...firstPage,
-      data: [firstPage, ...remainingPages].flatMap((response) => response.data ?? []),
-      totalCount,
+    const loadPage = async (page: number): Promise<FestivalResponseDto> => {
+      throwIfAborted(scanContext.signal);
+      apiRequestCount += 1;
+      const response = await this.getFestivals({
+        page,
+        perPage: this.fullScanPageSize,
+        context: scanContext,
+      });
+      receivedRowCount += response.data?.length ?? 0;
+      return response;
     };
+
+    try {
+      const firstPage = await loadPage(1);
+      const totalCount = normalizeCount(firstPage.totalCount);
+      pageCount = Math.max(1, Math.ceil(totalCount / this.fullScanPageSize));
+
+      if (pageCount <= 1) {
+        writeScanSummary(scanContext, startedAt, {
+          status: "SUCCESS",
+          pageCount,
+          apiRequestCount,
+          receivedRowCount,
+        });
+        return firstPage;
+      }
+
+      const remainingPages = await mapWithConcurrency(
+        Array.from({ length: pageCount - 1 }, (_, index) => index + 2),
+        fullScanConcurrency,
+        loadPage,
+      );
+      const result = {
+        ...firstPage,
+        data: [firstPage, ...remainingPages].flatMap((response) => response.data ?? []),
+        totalCount,
+      };
+      writeScanSummary(scanContext, startedAt, {
+        status: "SUCCESS",
+        pageCount,
+        apiRequestCount,
+        receivedRowCount,
+      });
+      return result;
+    } catch (error) {
+      writeScanSummary(scanContext, startedAt, {
+        status: scanContext.signal?.aborted === true ? "ABORTED" : "FAILED",
+        pageCount,
+        apiRequestCount,
+        receivedRowCount,
+      });
+      throw error;
+    }
   }
 
   private createQuery(request: FestivalApiRequest): HttpQueryParams {
@@ -91,18 +124,46 @@ export class FestivalApiClient {
       type: "json",
       opar: request.venue,
       rdnmadr: request.roadAddress,
+      lnmadr: request.lotAddress,
+      fstvlStartDate: request.festivalStartDate,
+      fstvlEndDate: request.festivalEndDate,
     };
   }
 }
 
 function createFullScanContext(context: OperationContext | undefined): OperationContext {
+  const festivalDeadlineAtMs = Date.now() + fullScanTimeoutMs;
   return {
-    ...(context?.requestId !== undefined ? { requestId: context.requestId } : {}),
-    ...(context?.tool !== undefined ? { tool: context.tool } : {}),
-    ...(context?.telemetry !== undefined ? { telemetry: context.telemetry } : {}),
-    ...(context?.logWriter !== undefined ? { logWriter: context.logWriter } : {}),
-    deadlineAtMs: Date.now() + fullScanTimeoutMs,
+    ...context,
+    deadlineAtMs: Math.min(context?.deadlineAtMs ?? festivalDeadlineAtMs, festivalDeadlineAtMs),
   };
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted !== true) return;
+  throw signal.reason instanceof Error ? signal.reason : new Error("Festival scan was aborted.");
+}
+
+function writeScanSummary(
+  context: OperationContext,
+  startedAt: number,
+  details: {
+    readonly status: "SUCCESS" | "FAILED" | "ABORTED";
+    readonly pageCount: number;
+    readonly apiRequestCount: number;
+    readonly receivedRowCount: number;
+  },
+): void {
+  context.logWriter?.({
+    timestamp: new Date().toISOString(),
+    level: details.status === "SUCCESS" ? "info" : details.status === "ABORTED" ? "warn" : "error",
+    event: "festival.scan.summary",
+    ...(context.requestId !== undefined ? { requestId: context.requestId } : {}),
+    ...(context.tool !== undefined ? { tool: context.tool } : {}),
+    source: "festival",
+    durationMs: Math.round(performance.now() - startedAt),
+    ...details,
+  });
 }
 
 function parseFestivalResponse(response: unknown): FestivalResponseDto {

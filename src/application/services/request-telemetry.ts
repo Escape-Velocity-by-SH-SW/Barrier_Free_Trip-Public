@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import type {
+  CacheTelemetryDetails,
+  DeadlineTelemetryDetails,
   DownstreamSource,
   DownstreamTelemetrySnapshot,
   RequestTelemetry,
@@ -40,18 +42,25 @@ export class InMemoryRequestTelemetry implements RequestTelemetry {
     this.now = options.now ?? (() => new Date());
   }
 
-  recordCache(source: DownstreamSource, result: "hit" | "miss"): void {
+  recordCache(
+    source: DownstreamSource,
+    result: "hit" | "miss",
+    details: CacheTelemetryDetails = {},
+  ): void {
     if (result === "hit") {
       this.cacheHits += 1;
     } else {
       this.cacheMisses += 1;
     }
-    this.emit("info", result === "hit" ? "cache.hit" : "cache.miss", { source });
+    this.emit("info", result === "hit" ? "cache.hit" : "cache.miss", {
+      source,
+      ...details,
+    });
   }
 
-  recordSingleFlightJoin(source: DownstreamSource): void {
+  recordSingleFlightJoin(source: DownstreamSource, details: CacheTelemetryDetails = {}): void {
     this.singleFlightJoins += 1;
-    this.emit("info", "singleflight.join", { source });
+    this.emit("info", "singleflight.join", { source, ...details });
   }
 
   recordDownstreamCall(
@@ -91,9 +100,9 @@ export class InMemoryRequestTelemetry implements RequestTelemetry {
     });
   }
 
-  recordDeadlineExceeded(): void {
+  recordDeadlineExceeded(details: DeadlineTelemetryDetails = {}): void {
     this.timeouts += 1;
-    this.emit("error", "deadline.exceeded", {});
+    this.emit("error", "deadline.exceeded", { ...details });
   }
 
   snapshot(): RequestTelemetrySnapshot {

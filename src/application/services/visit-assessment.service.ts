@@ -22,9 +22,9 @@ import type {
   VisitAssessmentStatus,
 } from "../../domain/visit-assessment.js";
 import type { DestinationWeatherResult } from "../../domain/weather.js";
-import type { OperationContext } from "../ports/operation-context.js";
+import type { DownstreamSource, OperationContext } from "../ports/operation-context.js";
 import { mapWithConcurrency } from "./concurrency.js";
-import { runWithDeadline } from "./deadline.js";
+import { DeadlineExceededError, runWithDeadline } from "./deadline.js";
 import { ensureObservedContext, writeToolSummary } from "./tool-observation.js";
 import { performanceConfig } from "./performance-config.js";
 
@@ -63,6 +63,8 @@ export interface VisitAssessmentBatchResult {
 export interface VisitAssessmentPerformanceOptions {
   overallDeadlineMs: number;
   destinationConcurrency: number;
+  responseReserveMs?: number;
+  maxSourceBudgetMs?: number;
 }
 
 const defaultRadiusKm = 3;
@@ -95,6 +97,8 @@ export class VisitAssessmentService {
     private readonly performanceOptions: VisitAssessmentPerformanceOptions = {
       overallDeadlineMs: performanceConfig.overallDeadlineMs,
       destinationConcurrency: performanceConfig.destinationConcurrency,
+      responseReserveMs: performanceConfig.responseReserveMs,
+      maxSourceBudgetMs: performanceConfig.maxSourceBudgetMs,
     },
   ) {}
 
@@ -241,25 +245,38 @@ export class VisitAssessmentService {
     context: OperationContext,
   ): Promise<AccessibleVisitAssessment> {
     const radiusKm = request.radiusKm ?? defaultRadiusKm;
+    const sourceBudgetMs = calculateSourceBudgetMs(context, this.performanceOptions);
     const [accessibility, weather, chargers, festivalRisk] = await Promise.allSettled([
-      this.accessibilityService.getAccessibility({
-        destination,
-        travelerType: request.travelerType,
-        context,
-      }),
-      this.weatherService.getDestinationWeather({
-        destination,
-        visitDate: request.visitDate,
-        travelerType: request.travelerType,
-        context,
-      }),
-      this.chargerService.findNearbyChargers({ destination, radiusKm, context }),
-      this.festivalRiskService.assess({
-        destination,
-        visitDate: request.visitDate,
-        radiusKm,
-        context,
-      }),
+      runAssessmentSource("accessibility", sourceBudgetMs, context, (sourceContext) =>
+        this.accessibilityService.getAccessibility({
+          destination,
+          travelerType: request.travelerType,
+          context: sourceContext,
+        }),
+      ),
+      runAssessmentSource("weather", sourceBudgetMs, context, (sourceContext) =>
+        this.weatherService.getDestinationWeather({
+          destination,
+          visitDate: request.visitDate,
+          travelerType: request.travelerType,
+          context: sourceContext,
+        }),
+      ),
+      runAssessmentSource("charger", sourceBudgetMs, context, (sourceContext) =>
+        this.chargerService.findNearbyChargers({
+          destination,
+          radiusKm,
+          context: sourceContext,
+        }),
+      ),
+      runAssessmentSource("festival", sourceBudgetMs, context, (sourceContext) =>
+        this.festivalRiskService.assess({
+          destination,
+          visitDate: request.visitDate,
+          radiusKm,
+          context: sourceContext,
+        }),
+      ),
     ]);
 
     const accessibilityResult =
@@ -352,6 +369,87 @@ export class VisitAssessmentService {
       input.context.logWriter,
     );
   }
+}
+
+type AssessmentSource = Extract<
+  DownstreamSource,
+  "accessibility" | "weather" | "charger" | "festival"
+>;
+
+function calculateSourceBudgetMs(
+  context: OperationContext,
+  options: VisitAssessmentPerformanceOptions,
+): number {
+  const remainingMs =
+    context.deadlineAtMs === undefined
+      ? options.overallDeadlineMs
+      : Math.max(0, context.deadlineAtMs - Date.now());
+  const responseReserveMs =
+    options.responseReserveMs ??
+    Math.min(performanceConfig.responseReserveMs, Math.floor(options.overallDeadlineMs * 0.15));
+  const maxSourceBudgetMs = options.maxSourceBudgetMs ?? performanceConfig.maxSourceBudgetMs;
+  return Math.max(0, Math.floor(Math.min(maxSourceBudgetMs, remainingMs - responseReserveMs)));
+}
+
+async function runAssessmentSource<TResult extends VisitAssessmentSourceResult>(
+  source: AssessmentSource,
+  budgetMs: number,
+  context: OperationContext,
+  operation: (context: OperationContext) => Promise<TResult>,
+): Promise<TResult> {
+  const startedAt = performance.now();
+
+  try {
+    const result = await runWithDeadline(budgetMs, operation, context, {
+      scope: "source",
+      source,
+    });
+    writeSourceSummary(context, {
+      source,
+      durationMs: Math.round(performance.now() - startedAt),
+      budgetMs,
+      status: result.status,
+      outcome: result.status === "FAILED" ? "ERROR" : "SUCCESS",
+      timeout: false,
+      parentAbort: false,
+    });
+    return result;
+  } catch (error) {
+    const parentAbort = context.signal?.aborted === true;
+    const timeout = !parentAbort && error instanceof DeadlineExceededError;
+    writeSourceSummary(context, {
+      source,
+      durationMs: Math.round(performance.now() - startedAt),
+      budgetMs,
+      status: "FAILED",
+      outcome: parentAbort ? "PARENT_ABORT" : timeout ? "TIMEOUT" : "ERROR",
+      timeout,
+      parentAbort,
+    });
+    throw error;
+  }
+}
+
+function writeSourceSummary(
+  context: OperationContext,
+  details: {
+    readonly source: AssessmentSource;
+    readonly durationMs: number;
+    readonly budgetMs: number;
+    readonly status: string;
+    readonly outcome: "SUCCESS" | "ERROR" | "TIMEOUT" | "PARENT_ABORT";
+    readonly timeout: boolean;
+    readonly parentAbort: boolean;
+  },
+): void {
+  context.logWriter?.({
+    timestamp: new Date().toISOString(),
+    level: details.outcome === "SUCCESS" ? "info" : "error",
+    event: "source.summary",
+    ...(context.requestId !== undefined ? { requestId: context.requestId } : {}),
+    ...(context.tool !== undefined ? { tool: context.tool } : {}),
+    ...details,
+  });
 }
 
 function normalizeDestinations(destinations: string[]): string[] {
