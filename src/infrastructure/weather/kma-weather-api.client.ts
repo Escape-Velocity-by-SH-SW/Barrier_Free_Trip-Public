@@ -170,7 +170,7 @@ function buildForecastRequestOptions(
 const successResultCode = "00";
 const noDataResultCode = "03";
 const defaultPageNo = 1;
-const defaultNumOfRows = 1000;
+const defaultNumOfRows = 1500;
 const forecastCategories = new Set(["POP", "PCP", "PTY", "TMN", "TMX"]);
 
 /** KMA 오류 코드를 사용자에게 노출 가능한 한국어 메시지로 변환하기 위한 표다. */

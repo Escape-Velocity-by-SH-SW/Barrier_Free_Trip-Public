@@ -48,7 +48,7 @@ export class KmaWeatherAdapter implements WeatherRepository {
         visitDate: query.visitDate,
         nx: grid.nx,
         ny: grid.ny,
-        numOfRows: 1_000,
+        numOfRows: 1_500,
         ...(context !== undefined ? { context } : {}),
       });
 
