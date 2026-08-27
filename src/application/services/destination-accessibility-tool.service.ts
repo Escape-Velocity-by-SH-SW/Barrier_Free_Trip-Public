@@ -13,7 +13,6 @@ import { runWithDeadline } from "./deadline.js";
 
 export interface DestinationAccessibilityToolRequest {
   destination?: string | undefined;
-  destinationName?: string | undefined;
   contentId?: string | undefined;
   contentTypeId?: string | undefined;
   travelerType?: string | undefined;
@@ -252,7 +251,7 @@ function toCandidateSummaries(candidates: DestinationCandidate[]): DestinationCa
 }
 
 function getDestinationName(request: DestinationAccessibilityToolRequest): string | undefined {
-  return normalizeText(request.destinationName) ?? normalizeText(request.destination);
+  return normalizeText(request.destination);
 }
 
 function normalizeTravelerType(value: string | undefined): TravelerType | undefined {
