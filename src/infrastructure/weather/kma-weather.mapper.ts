@@ -143,7 +143,7 @@ function mapPrecipitationAmount(value: string | null): PrecipitationAmount | und
 
   return {
     amountMm: numericValue,
-    description: value,
+    description: /mm/i.test(value) ? value : `${value}mm`,
   };
 }
 
