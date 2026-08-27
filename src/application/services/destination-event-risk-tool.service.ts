@@ -12,7 +12,6 @@ import { runWithDeadline } from "./deadline.js";
 
 export interface DestinationEventRiskToolRequest {
   destination?: string | undefined;
-  destinationName?: string | undefined;
   contentId?: string | undefined;
   visitDate: string;
   radiusKm: number;
@@ -71,7 +70,7 @@ export class DestinationEventRiskToolService {
     if (contentId !== undefined) {
       if (destinationName === undefined) {
         return createFailedResult(
-          "축제 위험 조회는 거리 계산을 위한 좌표가 필요합니다. contentId만으로는 좌표를 확정할 수 없으므로 destinationName을 함께 입력해주세요.",
+          "축제 위험 조회는 거리 계산을 위한 좌표가 필요합니다. contentId만으로는 좌표를 확정할 수 없으므로 destination을 함께 입력해주세요.",
           request,
           [],
         );
@@ -214,7 +213,7 @@ function toCandidateSummaries(candidates: DestinationCandidate[]): DestinationCa
 }
 
 function getDestinationName(request: DestinationEventRiskToolRequest): string | undefined {
-  return normalizeText(request.destinationName) ?? normalizeText(request.destination);
+  return normalizeText(request.destination);
 }
 
 function normalizeText(value: string | undefined): string | undefined {

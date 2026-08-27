@@ -63,9 +63,22 @@ const candidateSchema = z.object({
 });
 
 export const getDestinationAccessibilityInputSchema = {
-  destination: z.string().trim().min(1).optional(),
-  destinationName: z.string().trim().min(1).optional(),
-  contentId: z.string().trim().min(1).optional(),
+  destination: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      "Place name to search for. Required unless contentId is provided. If both destination and contentId are given, destination is used to resolve full name/address/coordinates for that contentId.",
+    ),
+  contentId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      "Content ID from a previous search. Can be used alone — in that case the result omits resolved name/address/coordinates and returns facility details only. Provide destination together with it to also resolve those fields.",
+    ),
   contentTypeId: z.string().trim().min(1).optional(),
   travelerType: z.enum(toolTravelerTypes).optional(),
 };

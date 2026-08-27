@@ -35,9 +35,22 @@ const candidateSchema = z.object({
 });
 
 export const getDestinationEventRiskInputSchema = {
-  destination: z.string().trim().min(1).optional(),
-  destinationName: z.string().trim().min(1).optional(),
-  contentId: z.string().trim().min(1).optional(),
+  destination: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      "Place name to search for. Required unless contentId is provided together with it — contentId alone is not enough to resolve coordinates for distance calculation.",
+    ),
+  contentId: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      "Content ID from a previous search. Must be provided together with destination — contentId alone fails because coordinates cannot be resolved from it.",
+    ),
   visitDate: z.iso.date(),
   radiusKm: z.number().min(0.1).max(20).default(3),
 };
