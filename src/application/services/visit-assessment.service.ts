@@ -616,7 +616,10 @@ function createCombinedCautions(
 ): CautionItem[] {
   return [
     ...toCautionItems("ACCESSIBILITY", accessibility.cautions, accessibility.status),
-    ...toCautionItems("WEATHER", weather.risk.cautions, weather.status),
+    // 날씨 조회 자체가 실패(FAILED)하면 실패 안내 대신 날씨 항목을 응답에서 통째로 제외한다.
+    ...(weather.status === "FAILED"
+      ? []
+      : toCautionItems("WEATHER", weather.risk.cautions, weather.status)),
     ...toCautionItems("CHARGER", chargers.cautions, chargers.status),
     ...toCautionItems("FESTIVAL", festivalRisk.cautions, festivalRisk.status),
   ];
@@ -659,11 +662,8 @@ function createUnknowns(
 ): string[] {
   return [
     ...accessibility.unknowns,
-    ...(weather.status === "FAILED" ||
-    weather.status === "NO_DATA" ||
-    weather.status === "OUT_OF_RANGE"
-      ? ["날씨 정보"]
-      : []),
+    // FAILED는 날씨 항목 자체를 제외하므로 "unknown"으로도 남기지 않는다.
+    ...(weather.status === "NO_DATA" || weather.status === "OUT_OF_RANGE" ? ["날씨 정보"] : []),
     ...(chargers.status === "FAILED" || chargers.status === "NO_DATA"
       ? ["전동휠체어 충전소 정보"]
       : []),
@@ -680,9 +680,9 @@ function calculateOverallStatus(input: {
   festivalStatus: "SUCCESS" | "NO_DATA" | "FAILED";
   cautionCount: number;
 }): VisitAssessmentStatus {
+  // weatherStatus FAILED는 응답에서 날씨 항목 자체를 제외하므로 전체 상태 판정에 반영하지 않는다.
   if (
     input.accessibilityStatus === "FAILED" ||
-    input.weatherStatus === "FAILED" ||
     input.chargerStatus === "FAILED" ||
     input.festivalStatus === "FAILED"
   ) {

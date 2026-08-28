@@ -216,12 +216,16 @@ Single vs batch:
           context: observation.context,
         });
 
+        const { weather, ...resultWithoutWeather } = result;
         const output = {
           status:
             result.overallAssessment.status === "CHECK_REQUIRED"
               ? ("PARTIAL_SUCCESS" as const)
               : ("SUCCESS" as const),
-          ...result,
+          ...resultWithoutWeather,
+          // 날씨 조회가 FAILED면 응답에서 weather 항목 자체를 제외한다(타임아웃 등으로
+          // 못 받아온 값을 "실패"로 노출하지 않고 조용히 생략).
+          ...(weather.status === "FAILED" ? {} : { weather }),
         };
 
         if (input.responseMode === "DETAIL") {
@@ -289,14 +293,20 @@ function compactBatchResult(
       void chargerDestination;
       void festivalDestination;
 
+      // 원본 weather(= destination 포함 전체)를 spread에서 먼저 제거해야
+      // 아래에서 안 채워 넣었을 때 진짜로 응답에서 빠진다.
+      const { weather: originalWeather, ...assessmentWithoutWeather } = assessment;
+      void originalWeather;
+
       return {
         ...item,
         assessment: {
-          ...assessment,
+          ...assessmentWithoutWeather,
           accessibility,
-          weather,
           chargers,
           festivalRisk,
+          // 날씨 조회가 FAILED면 응답에서 weather 항목 자체를 제외한다.
+          ...(assessment.weather.status === "FAILED" ? {} : { weather }),
         },
       };
     }),
