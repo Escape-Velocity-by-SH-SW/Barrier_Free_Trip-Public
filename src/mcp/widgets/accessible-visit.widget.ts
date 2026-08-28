@@ -224,11 +224,11 @@ function formatPrecipitationTypes(types: PrecipitationType[]): string | undefine
 function formatPrecipitationAmount(forecast: DailyWeatherForecast): string | undefined {
   if (forecast.precipitationAmountDescription !== undefined) {
     if (forecast.precipitationAmountDescription === "강수없음") {
-      return "강수 없음";
+      return undefined;
     }
     return `강수량 ${forecast.precipitationAmountDescription}`;
   }
-  if (forecast.maxPrecipitationAmountMm !== undefined) {
+  if (forecast.maxPrecipitationAmountMm !== undefined && forecast.maxPrecipitationAmountMm > 0) {
     return `최대 1시간 강수량 ${forecast.maxPrecipitationAmountMm}mm`;
   }
   return undefined;
