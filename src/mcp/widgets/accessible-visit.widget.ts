@@ -125,7 +125,7 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
   return {
     type: "Card",
     size: "lg",
-    padding: 16,
+    padding: 12,
     key: "accessible-visit-summary",
     children,
   };
