@@ -64,7 +64,7 @@ export interface AccessibleVisitDetailContext {
     readonly strollerRental: FacilityDetail;
     readonly lactationRoom: FacilityDetail;
   };
-  readonly weather: WeatherDetail;
+  readonly weather?: WeatherDetail;
   readonly culturalFestivals: {
     readonly dataStatus: AccessibleVisitAssessment["festivalRisk"]["status"];
     readonly radiusKm: number;
@@ -176,29 +176,10 @@ export function buildAccessibleVisitDetailContext(
       strollerRental: toFacilityDetail(assessment.accessibility.facilities.stroller),
       lactationRoom: toFacilityDetail(assessment.accessibility.facilities.lactationRoom),
     },
-    weather: {
-      dataStatus: assessment.weather.status,
-      ...(forecast?.minTemperatureCelsius !== undefined
-        ? { minTemperatureCelsius: forecast.minTemperatureCelsius }
-        : {}),
-      ...(forecast?.maxTemperatureCelsius !== undefined
-        ? { maxTemperatureCelsius: forecast.maxTemperatureCelsius }
-        : {}),
-      ...(forecast?.maxPrecipitationProbabilityPercent !== undefined
-        ? {
-            maxPrecipitationProbabilityPercent: forecast.maxPrecipitationProbabilityPercent,
-          }
-        : {}),
-      ...(forecast?.maxPrecipitationAmountMm !== undefined
-        ? { maxPrecipitationAmountMm: forecast.maxPrecipitationAmountMm }
-        : {}),
-      ...(forecast?.precipitationAmountDescription !== undefined
-        ? { precipitationAmountDescription: forecast.precipitationAmountDescription }
-        : {}),
-      precipitationTypes: forecast?.precipitationTypes ?? [],
-      riskTypes: assessment.weather.risk.riskTypes,
-      cautions: assessment.weather.risk.cautions,
-    },
+    // 날씨 조회가 FAILED면 실패 상태를 노출하는 대신 weather 항목 자체를 제외한다.
+    ...(assessment.weather.status === "FAILED"
+      ? {}
+      : { weather: buildWeatherDetail(assessment, forecast) }),
     culturalFestivals: {
       dataStatus: assessment.festivalRisk.status,
       radiusKm: assessment.festivalRisk.radiusKm,
@@ -218,6 +199,35 @@ export function buildAccessibleVisitDetailContext(
   };
 
   return context;
+}
+
+function buildWeatherDetail(
+  assessment: AccessibleVisitAssessment,
+  forecast: DailyWeatherForecast | undefined,
+): WeatherDetail {
+  return {
+    dataStatus: assessment.weather.status,
+    ...(forecast?.minTemperatureCelsius !== undefined
+      ? { minTemperatureCelsius: forecast.minTemperatureCelsius }
+      : {}),
+    ...(forecast?.maxTemperatureCelsius !== undefined
+      ? { maxTemperatureCelsius: forecast.maxTemperatureCelsius }
+      : {}),
+    ...(forecast?.maxPrecipitationProbabilityPercent !== undefined
+      ? {
+          maxPrecipitationProbabilityPercent: forecast.maxPrecipitationProbabilityPercent,
+        }
+      : {}),
+    ...(forecast?.maxPrecipitationAmountMm !== undefined
+      ? { maxPrecipitationAmountMm: forecast.maxPrecipitationAmountMm }
+      : {}),
+    ...(forecast?.precipitationAmountDescription !== undefined
+      ? { precipitationAmountDescription: forecast.precipitationAmountDescription }
+      : {}),
+    precipitationTypes: forecast?.precipitationTypes ?? [],
+    riskTypes: assessment.weather.risk.riskTypes,
+    cautions: assessment.weather.risk.cautions,
+  };
 }
 
 function toFacilityDetail(evidence: EvidenceItem): FacilityDetail {
@@ -302,7 +312,10 @@ function buildDetailThingsToCheck(assessment: AccessibleVisitAssessment): string
   if (assessment.weather.status !== "AVAILABLE" || assessment.weather.risk.riskTypes.length > 0) {
     items.push("방문 당일 공식 예보 재확인");
   }
-  items.push(...assessment.weather.risk.cautions);
+  // FAILED는 날씨 항목 자체를 응답에서 제외하므로 "조회 실패" 유의사항도 넣지 않는다.
+  if (assessment.weather.status !== "FAILED") {
+    items.push(...assessment.weather.risk.cautions);
+  }
 
   if (assessment.festivalRisk.festivals.length > 0) {
     items.push("문화축제 시간과 주변 이동 동선 확인");
