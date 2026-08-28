@@ -103,9 +103,14 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
     divider(),
     title("이동 · 무장애 편의", "md"),
     ...buildAccessibilitySummary(assessment),
-    divider(),
-    title("방문일 날씨", "md"),
-    ...buildWeatherSummary(assessment),
+  );
+
+  // 날씨 조회 자체가 FAILED면 실패 안내를 보여주는 대신 날씨 섹션을 통째로 뺀다.
+  if (assessment.weather.status !== "FAILED") {
+    children.push(divider(), title("방문일 날씨", "md"), ...buildWeatherSummary(assessment));
+  }
+
+  children.push(
     divider(),
     title("주변 문화축제", "md"),
     ...buildFestivalSummary(assessment),
@@ -349,7 +354,7 @@ function buildOverallReason(assessment: AccessibleVisitAssessment): string {
 function getFailedSourceLabels(assessment: AccessibleVisitAssessment): string[] {
   const labels: string[] = [];
   if (assessment.accessibility.status === "FAILED") labels.push("무장애 편의시설");
-  if (assessment.weather.status === "FAILED") labels.push("날씨");
+  // 날씨는 실패 시 항목 자체를 제외하므로 "조회 실패" 사유로 노출하지 않는다.
   if (assessment.festivalRisk.status === "FAILED") labels.push("문화축제");
   if (
     assessment.visit.travelerType === "POWER_WHEELCHAIR" &&
