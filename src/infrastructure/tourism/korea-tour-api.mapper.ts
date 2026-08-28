@@ -8,6 +8,17 @@ import type {
   TourApiItemsDto,
 } from "./korea-tour-api.dto.js";
 
+const namedHtmlEntities: Readonly<Record<string, string>> = {
+  nbsp: " ",
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  middot: "·",
+  bull: "•",
+};
+
 export function mapSearchKeywordResponseToDestinationCandidates(
   response: SearchKeywordResponseDto,
   keyword: string,
@@ -111,13 +122,53 @@ function optionalField(
   key: keyof AccessibilitySourceData,
   value: string | null | undefined,
 ): Partial<AccessibilitySourceData> {
-  const normalizedValue = normalizeText(value);
+  const normalizedValue = normalizeAccessibilityDescription(value);
 
   if (normalizedValue === undefined) {
     return {};
   }
 
   return { [key]: normalizedValue };
+}
+
+function normalizeAccessibilityDescription(value: string | null | undefined): string | undefined {
+  const normalizedValue = normalizeText(value);
+  if (normalizedValue === undefined) return undefined;
+
+  const plainText = decodeHtmlEntities(normalizedValue)
+    .replaceAll(/<!--[\s\S]*?-->/g, " ")
+    .replaceAll(/<\s*br\b[^>]*>/gi, "\n")
+    .replaceAll(/<\s*\/?\s*(?:p|div|li|ul|ol|section|article)\b[^>]*>/gi, "\n")
+    .replaceAll(/<\s*\/?\s*[a-z][^>]*>/gi, "")
+    .replaceAll(/\r\n?/g, "\n");
+  const sections = plainText
+    .split(/\n+/)
+    .map((section) => section.replaceAll(/\s+/g, " ").trim())
+    .filter((section) => section.length > 0);
+  return sections.length > 0 ? sections.join(" · ") : undefined;
+}
+
+function decodeHtmlEntities(value: string): string {
+  const withNamedEntities = value.replaceAll(
+    /&(nbsp|amp|lt|gt|quot|apos|middot|bull);/gi,
+    (entity, name: string) => namedHtmlEntities[name.toLowerCase()] ?? entity,
+  );
+  return withNamedEntities.replaceAll(
+    /&#(?:x([0-9a-f]+)|(\d+));?/gi,
+    (entity, hexadecimal: string | undefined, decimal: string | undefined) => {
+      const digits = hexadecimal ?? decimal;
+      if (digits === undefined) return entity;
+      const codePoint = Number.parseInt(digits, hexadecimal === undefined ? 10 : 16);
+      if (!isValidUnicodeCodePoint(codePoint)) return entity;
+      return String.fromCodePoint(codePoint);
+    },
+  );
+}
+
+function isValidUnicodeCodePoint(value: number): boolean {
+  return (
+    Number.isInteger(value) && value > 0 && value <= 0x10ffff && (value < 0xd800 || value > 0xdfff)
+  );
 }
 
 function parseCoordinate(
