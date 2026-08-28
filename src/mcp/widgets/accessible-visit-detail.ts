@@ -309,11 +309,11 @@ function buildDetailThingsToCheck(assessment: AccessibleVisitAssessment): string
     items.push(`${unknownLabels.join(" · ")} 이용 가능 여부 확인`);
   }
 
-  if (assessment.weather.status !== "AVAILABLE" || assessment.weather.risk.riskTypes.length > 0) {
-    items.push("방문 당일 공식 예보 재확인");
-  }
-  // FAILED는 날씨 항목 자체를 응답에서 제외하므로 "조회 실패" 유의사항도 넣지 않는다.
+  // FAILED는 날씨 항목 자체를 응답에서 제외하므로 재확인 문구/유의사항 모두 넣지 않는다.
   if (assessment.weather.status !== "FAILED") {
+    if (assessment.weather.status !== "AVAILABLE" || assessment.weather.risk.riskTypes.length > 0) {
+      items.push("방문 당일 공식 예보 재확인");
+    }
     items.push(...assessment.weather.risk.cautions);
   }
 
