@@ -473,7 +473,7 @@ function toBatchStatus(
 
 function createResolutionMessage(status: DestinationResolutionStatus): string {
   if (status === "AMBIGUOUS_DESTINATION") {
-    return "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해주세요.";
+    return "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해 주세요.";
   }
   if (status === "NO_DATA") {
     return "검색 결과가 없습니다.";
@@ -542,7 +542,7 @@ function createFailedAccessibilityResult(
     destination,
     travelerType,
     facilities,
-    cautions: ["무장애 편의시설 정보를 조회하지 못했습니다. 방문 전 현장에 확인하세요."],
+    cautions: ["무장애 편의시설 정보를 조회하지 못했습니다. 방문 전 현장에 문의해 확인하세요."],
     unknowns: Object.keys(facilities),
   };
 }

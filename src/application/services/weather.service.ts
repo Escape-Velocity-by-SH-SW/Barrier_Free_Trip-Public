@@ -243,7 +243,7 @@ function createWeatherCautions(
   const cautions: string[] = [];
 
   if (riskTypes.includes("RAIN")) {
-    cautions.push("강수 예보가 있어 미끄럼과 우천 이동 동선을 확인하세요.");
+    cautions.push("강수 예보가 있어 미끄럼 위험과 우천 시 이동 경로를 확인하세요.");
   }
 
   if (riskTypes.includes("HEAVY_RAIN")) {
@@ -251,11 +251,11 @@ function createWeatherCautions(
   }
 
   if (riskTypes.includes("SNOW")) {
-    cautions.push("눈 예보가 있어 경사로와 보도 상태를 방문 전 확인하세요.");
+    cautions.push("눈 예보가 있어 방문 전에 경사로와 보도 상태를 확인하세요.");
   }
 
   if (riskTypes.includes("ICY_ROAD")) {
-    cautions.push("결빙 가능성이 있어 휠체어와 보행 보조기 이동 경로를 보수적으로 선택하세요.");
+    cautions.push("결빙 가능성이 있어 휠체어나 보행 보조기 이용 시 안전한 이동 경로를 선택하세요.");
   }
 
   if (riskTypes.includes("HEAT")) {

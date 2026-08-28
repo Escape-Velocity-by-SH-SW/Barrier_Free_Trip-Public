@@ -140,7 +140,7 @@ function createFailedLookupResult(
     status: "FAILED",
     ...(travelerType !== undefined ? { travelerType } : {}),
     facilities,
-    cautions: ["무장애 편의시설 정보를 조회하지 못했습니다. 방문 전 현장에 확인하세요."],
+    cautions: ["무장애 편의시설 정보를 조회하지 못했습니다. 방문 전 현장에 문의해 확인하세요."],
     unknowns: getUnknownFacilityNames(facilities),
   };
 }
@@ -211,7 +211,7 @@ function createCautions(
   facilities: AccessibilityFacilities,
   travelerType: TravelerType | undefined,
 ): string[] {
-  const cautions = ["공공데이터 기준 정보이므로 운영 여부는 방문 전 현장에 확인하세요."];
+  const cautions = ["공공데이터 기준 정보이므로 운영 여부는 방문 전 현장에 문의해 확인하세요."];
 
   if (travelerType === "POWER_WHEELCHAIR" || travelerType === "MANUAL_WHEELCHAIR") {
     addFacilityCaution(cautions, facilities.route, "접근로 정보가 확인되지 않았습니다.");

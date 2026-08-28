@@ -99,7 +99,7 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
     ),
     divider(),
     badge(assessment.overallAssessment.status),
-    text(buildOverallReason(assessment), "md"),
+    text(preventKoreanWordBreak(buildOverallReason(assessment)), "md"),
     divider(),
     title("이동 · 무장애 편의", "md"),
     ...buildAccessibilitySummary(assessment),
@@ -110,11 +110,7 @@ export function buildVisitSummary(assessment: AccessibleVisitAssessment): CardWi
     children.push(divider(), title("방문일 날씨", "md"), ...buildWeatherSummary(assessment));
   }
 
-  children.push(
-    divider(),
-    title("주변 문화축제", "md"),
-    ...buildFestivalSummary(assessment),
-  );
+  children.push(divider(), title("주변 문화축제", "md"), ...buildFestivalSummary(assessment));
 
   if (assessment.visit.travelerType === "POWER_WHEELCHAIR") {
     children.push(divider(), title("전동휠체어 충전소", "md"), ...buildChargerSummary(assessment));
@@ -227,6 +223,9 @@ function formatPrecipitationTypes(types: PrecipitationType[]): string | undefine
 
 function formatPrecipitationAmount(forecast: DailyWeatherForecast): string | undefined {
   if (forecast.precipitationAmountDescription !== undefined) {
+    if (forecast.precipitationAmountDescription === "강수없음") {
+      return "강수 없음";
+    }
     return `강수량 ${forecast.precipitationAmountDescription}`;
   }
   if (forecast.maxPrecipitationAmountMm !== undefined) {
@@ -335,7 +334,7 @@ function buildOverallReason(assessment: AccessibleVisitAssessment): string {
   if (weatherRisk !== undefined) causes.push(formatWeatherCause(weatherRisk));
   if (assessment.festivalRisk.festivals.length > 0) causes.push("주변 문화축제 일정");
   if (causes.length > 0) {
-    return `${joinKorean(causes.slice(0, 2))}이 확인되어 이동 동선과 방문 준비를 조금 더 꼼꼼히 살펴보세요.`;
+    return `${withSubjectParticle(joinKorean(causes.slice(0, 2)))} 있어 이동 경로와 준비 사항을 확인해 주세요.`;
   }
 
   const overallReason = assessment.overallAssessment.reasons.find(
@@ -501,8 +500,27 @@ function normalizeDescription(value: string): string {
   return value.trim().replaceAll(/[.!?。]+$/g, "");
 }
 
+/** 한글 단어 내부의 음절 단위 줄바꿈을 막고 공백에서 줄바꿈되도록 한다. */
+function preventKoreanWordBreak(value: string): string {
+  return value.replaceAll(/([가-힣])(?=[가-힣])/g, `$1\u2060`);
+}
+
 function joinKorean(values: string[]): string {
-  return values.length <= 1 ? (values[0] ?? "") : `${values[0]}와 ${values[1]}`;
+  if (values.length <= 1) return values[0] ?? "";
+  const first = values[0] ?? "";
+  return `${first}${hasKoreanFinalConsonant(first) ? "과" : "와"} ${values[1]}`;
+}
+
+function withSubjectParticle(value: string): string {
+  return `${value}${hasKoreanFinalConsonant(value) ? "이" : "가"}`;
+}
+
+function hasKoreanFinalConsonant(value: string): boolean {
+  const lastCharacter = [...value.trim()].at(-1);
+  if (lastCharacter === undefined) return false;
+  const codePoint = lastCharacter.codePointAt(0);
+  if (codePoint === undefined || codePoint < 0xac00 || codePoint > 0xd7a3) return false;
+  return (codePoint - 0xac00) % 28 !== 0;
 }
 
 function uniqueStrings(values: string[]): string[] {

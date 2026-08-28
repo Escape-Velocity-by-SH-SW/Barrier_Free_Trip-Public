@@ -70,7 +70,7 @@ export class DestinationEventRiskToolService {
     if (contentId !== undefined) {
       if (destinationName === undefined) {
         return createFailedResult(
-          "축제 위험 조회는 거리 계산을 위한 좌표가 필요합니다. contentId만으로는 좌표를 확정할 수 없으므로 destination을 함께 입력해주세요.",
+          "축제 위험 조회는 거리 계산을 위한 좌표가 필요합니다. contentId만으로는 좌표를 확정할 수 없으므로 destination을 함께 입력해 주세요.",
           request,
           [],
         );
@@ -153,7 +153,7 @@ function createResolutionFailureResult(
   if (resolution.status === "AMBIGUOUS_DESTINATION") {
     return {
       status: "AMBIGUOUS_DESTINATION",
-      message: "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해주세요.",
+      message: "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해 주세요.",
       visitDate: request.visitDate,
       radiusKm: request.radiusKm,
       cautions: ["후보 중 하나의 contentId를 선택해 같은 Tool을 다시 호출하세요."],

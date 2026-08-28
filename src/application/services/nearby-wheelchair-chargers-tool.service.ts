@@ -72,7 +72,7 @@ export class NearbyWheelchairChargersToolService {
       if (resolution.status === "AMBIGUOUS_DESTINATION") {
         return {
           status: "AMBIGUOUS_DESTINATION",
-          message: "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해주세요.",
+          message: "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해 주세요.",
           candidates: toCandidateSummaries(resolution.candidates ?? []),
           cautions: ["후보 중 하나의 contentId를 선택해 관광지를 더 구체적으로 지정하세요."],
         };
@@ -97,7 +97,7 @@ export class NearbyWheelchairChargersToolService {
 
 function createDestinationResolutionErrorMessage(status: DestinationResolutionStatus): string {
   if (status === "AMBIGUOUS_DESTINATION") {
-    return "AMBIGUOUS_DESTINATION: 관광지가 여러 개 검색되었습니다. 관광지명을 더 구체적으로 입력해주세요.";
+    return "AMBIGUOUS_DESTINATION: 관광지가 여러 개 검색되었습니다. 관광지명을 더 구체적으로 입력해 주세요.";
   }
 
   if (status === "NO_DATA") {

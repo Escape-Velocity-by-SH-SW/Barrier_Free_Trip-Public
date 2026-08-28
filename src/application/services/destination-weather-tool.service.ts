@@ -111,7 +111,7 @@ function createResolutionFailureResult(
   if (resolution.status === "AMBIGUOUS_DESTINATION") {
     return {
       status: "AMBIGUOUS_DESTINATION",
-      message: "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해주세요.",
+      message: "관광지가 여러 개 검색되었습니다. 후보 중 하나를 선택해 다시 요청해 주세요.",
       visitDate: request.visitDate,
       ...(request.travelerType !== undefined ? { travelerType: request.travelerType } : {}),
       forecasts: [],
