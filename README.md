@@ -1,432 +1,121 @@
-# Accessible Visit MCP
+# 보폭
 
-장애인, 고령자, 유모차 동반자 등 이동약자가 관광지를 방문하기 전에 필요한 정보를 한 번에 확인할 수 있도록 지원하는 MCP 서버입니다.
+> 이동약자의 관광지 방문 준비를 한 번에 돕는 MCP 서버
 
-사용자가 관광지, 방문일, 이동 조건을 자연어로 입력하면 LLM이 적절한 Tool을 호출하고, 서버는 공공데이터를 조회해 편의시설, 날씨, 전동휠체어 충전소, 축제 기반 혼잡 위험과 종합 유의사항을 반환합니다.
+보폭은 장애인, 고령자, 영유아 동반자처럼 이동에 추가적인 준비가 필요한 사용자를 위해
+관광지 정보를 모아 안내합니다. 사용자가 관광지와 방문일, 이동 조건을 자연어로 물으면
+분산된 공공데이터를 조회해 **무장애 편의시설, 날씨, 전동휠체어 충전소, 축제 기반 혼잡 위험**을
+종합하고 방문 전 유의사항과 체크리스트를 제공합니다.
 
-## 프로젝트 목표
+## 이런 질문에 답합니다
 
-관광지를 방문하려는 이동약자가 여러 공공데이터 사이트를 각각 검색하지 않고도 다음 질문에 답을 얻을 수 있도록 하는 것이 목표입니다.
+1. 엄마랑 일요일에 수성못 유원지 가기로 했어. 엄마가 수동 휠체어를 타시는데 괜찮을까?
+2. 오늘 할아버지랑 목포 해상케이블카 가는데 전동휠체어로 이동해도 문제 없겠지?
+3. 9월 1일에 두 살 딸이랑 서울어린이대공원 가려고 하는데, 유모차 끌고 다니기 괜찮을까?
 
-```text
-오늘 전동휠체어로 경복궁에 갈 건데 유의사항 알려줘.
-```
+보폭은 장소명을 먼저 실제 관광지로 확정한 뒤 사용자의 이동 조건에 필요한 정보를 선별합니다.
+한 가지 정보만 묻는 질문에는 전용 Tool을, 방문 가능 여부나 준비사항을 묻는 질문에는 종합 Tool을
+사용합니다.
 
-서버는 다음 정보를 제공합니다.
+## 주요 기능
 
-- 관광지 무장애 편의시설
-- 방문일 단기예보와 이동 관련 주의사항
-- 주변 전동휠체어 급속충전소
-- 주변 축제 기반 혼잡 위험
-- 방문 전 확인사항과 준비 체크리스트
+- **관광지 식별**: 정확히 일치하는 장소를 우선하며, 동명 장소는 임의로 선택하지 않습니다.
+- **무장애 정보**: 접근로, 출입구, 엘리베이터, 장애인 화장실, 휠체어·유모차 관련 시설을
+  확인합니다.
+- **방문일 날씨**: 기상청 단기예보를 바탕으로 강수, 폭염, 한파 등 이동에 영향을 주는 위험을
+  안내합니다.
+- **주변 충전소**: 전동휠체어 급속충전소를 거리순으로 제공하고 운영정보와 데이터 기준일을 함께
+  표시합니다.
+- **행사 기반 혼잡 위험**: 방문일과 장소 주변의 축제를 확인해 교통·주차 혼잡 가능성을
+  안내합니다.
+- **종합 방문 평가**: 조회 가능한 결과를 조합해 방문 상태, 핵심 유의사항, 준비 체크리스트를
+  반환합니다.
 
-## 프로젝트 구현 의도
-
-### 사용자 의도 중심의 Tool 설계
-
-외부 API를 그대로 Tool로 노출하지 않고 사용자가 실제로 묻는 목적을 기준으로 Tool을 설계합니다.
-
-예를 들어 날씨만 묻는 요청은 날씨 Tool이 처리하고, 여러 정보를 포함한 방문 유의사항 요청은 종합 Tool이 처리합니다.
-
-### 서로 다른 공공데이터의 통합
-
-각 공공데이터는 서로 다른 필드와 응답 구조를 사용합니다.
-
-서버는 이를 공통 형식으로 정규화하여 LLM이 원본 API 구조를 직접 해석하지 않아도 일관된 답변을 생성할 수 있도록 합니다.
-
-### 이동 조건을 반영한 유의사항 제공
-
-같은 날씨와 관광지라도 사용자의 이동 조건에 따라 중요한 정보가 달라질 수 있습니다.
-
-지원하는 이동 조건은 다음과 같습니다.
-
-```typescript
-type TravelerType = "POWER_WHEELCHAIR" | "MANUAL_WHEELCHAIR" | "STROLLER" | "ELDERLY_COMPANION";
-```
-
-예:
-
-- 전동휠체어 이용자: 충전소, 경사로, 엘리베이터
-- 수동휠체어 이용자: 접근로, 노면 상태, 강풍
-- 유모차 동반자: 엘리베이터, 유모차 대여, 수유실
-- 고령자 동반자: 이동 거리, 휴식 공간, 날씨 위험
-
-### 확인되지 않은 정보의 명확한 표현
-
-공공데이터에 값이 없다는 이유만으로 시설이 없다고 단정하지 않습니다.
-
-```text
-CONFIRMED      확인된 정보
-NOT_AVAILABLE  없다고 명시된 정보
-NOT_PROVIDED   데이터가 제공되지 않은 정보
-```
-
-충전소 데이터 역시 실시간 작동 여부를 보장하지 않으며, 축제 정보는 실시간 유동인구가 아닌 행사 기반 혼잡 가능성으로 안내합니다.
-
-### 종합 질문에 대한 부분 성공 지원
-
-종합 조회 중 일부 데이터 호출이 실패하더라도 조회에 성공한 나머지 정보는 유지하여 반환하는 것을 목표로 합니다.
+지원하는 이동 조건은 전동휠체어, 수동휠체어, 유모차, 고령자 동반입니다.
 
 ## 제공 Tool
 
-### `get_destination_weather`
+| Tool                              | 역할                                                |
+| --------------------------------- | --------------------------------------------------- |
+| `get_destination_weather`         | 관광지와 방문일 기준 단기예보 및 날씨 유의사항 조회 |
+| `find_nearby_wheelchair_chargers` | 관광지 주변 전동휠체어 급속충전소 조회              |
+| `get_destination_accessibility`   | 관광지의 무장애 편의시설 조회                       |
+| `get_destination_event_risk`      | 주변 축제에 따른 행사 기반 혼잡 위험 조회           |
+| `assess_accessible_visit`         | 편의시설·날씨·충전소·축제를 결합한 종합 방문 평가   |
 
-관광지와 방문일을 기준으로 단기예보와 이동 관련 날씨 유의사항을 조회합니다.
+`assess_accessible_visit`는 단일 장소 평가와 최대 5개 후보 비교를 지원합니다. 최초 응답은 핵심만
+담은 `SUMMARY`, 후속 설명은 상세 맥락을 제공하는 `DETAIL` 모드로 반환할 수 있습니다. 단일 장소의
+`SUMMARY`가 성공하면 Kakao Tools용 compact Widget도 함께 제공합니다.
 
-사용 예시:
+## 해결한 문제와 성능 개선
 
-```text
-내일 경복궁 날씨 괜찮아?
-유모차로 방문할 건데 비가 올까?
-```
+- **분산된 정보 통합**: 서로 다른 공공 API 응답을 공통 Domain 모델로 정규화해 한 번의 질문으로
+  비교할 수 있게 했습니다.
+- **불확실한 정보의 오해 방지**: 시설이 없다는 의미와 데이터가 제공되지 않았다는 의미를 구분하고,
+  날씨 예보 범위 밖의 값은 추정하지 않습니다.
+- **부분 실패 대응**: 독립 조회를 병렬 실행하고 일부 API가 실패하거나 지연돼도 확보한 결과는
+  유지합니다.
+- **중복 호출 감소**: 데이터 특성에 맞춘 TTL cache와 single-flight로 반복 요청 및 동시 동일 요청의
+  외부 API 호출을 줄였습니다.
+- **응답 지연 제한**: 종합 요청에 2.7초 deadline을 적용하고 후보를 최대 2개씩 처리해 과도한 동시
+  호출을 방지합니다. 일시적 오류만 남은 시간 안에서 1회 재시도합니다.
+- **축제 조회 최적화**: 성공 가능성이 낮았던 지역별 선행 호출을 제거하고 전국 dataset의 page 크기,
+  cache, 날짜 index를 활용해 반복 스캔 비용을 줄였습니다.
 
-주요 입력:
+구현 원리와 검증 수치는 [성능 및 확장성 분석](./PERFORMANCE.md), 학습용 상세 설명은
+[성능 개선 문서](./docs/performance/README.md)에서 확인할 수 있습니다.
 
-```typescript
-{
-  destination: string;
-  visitDate: string;
-  travelerType?: TravelerType;
-}
-```
+## 데이터와 안내 원칙
 
-주요 결과:
+| 데이터                      | 출처                                  |
+| --------------------------- | ------------------------------------- |
+| 관광지 검색·무장애 편의시설 | 한국관광공사 TourAPI                  |
+| 방문일 날씨                 | 기상청 단기예보                       |
+| 전동휠체어 충전소           | 전국 전동휠체어 급속충전기 표준데이터 |
+| 주변 축제                   | 전국문화축제표준데이터                |
 
-- 방문일 일별 예보
-- 일 최저·최고기온
-- 최대 강수확률, 최대 1시간 강수량, 강수형태
-- 강수, 폭염, 한파 등 이동 관련 날씨 위험
-- 이동 조건별 날씨 유의사항
+- 빈 값은 기본적으로 `NOT_PROVIDED`로 처리하며 명시적인 부재와 구분합니다.
+- 충전소의 실시간 작동 여부나 현재 사용 가능 여부는 보장하지 않습니다.
+- 축제 결과는 실시간 유동인구가 아닌 행사 기간과 거리를 바탕으로 한 위험 신호입니다.
+- 과거 날짜이거나 단기예보에 포함되지 않은 날짜의 날씨는 임의로 생성하지 않습니다.
+- 보폭의 결과는 방문 준비를 돕는 참고 정보이며, 중요한 시설은 방문 전 운영기관에 다시 확인하는
+  것을 권장합니다.
 
-과거 방문일이거나 단기예보 응답에 방문일이 포함되지 않은 경우 날씨를 임의로 추정하지 않습니다.
+## 구조
 
----
-
-### `find_nearby_wheelchair_chargers`
-
-관광지 주변의 전동휠체어 급속충전소를 조회합니다.
-
-사용 예시:
-
-```text
-경복궁 근처 전동휠체어 충전소 알려줘.
-반경 5km 안에 충전할 곳이 있어?
-```
-
-주요 입력:
-
-```typescript
-{
-  destination: string;
-  radiusKm?: number;
-  visitDateTime?: string;
-}
-```
-
-주요 결과:
-
-- 충전소명
-- 관광지와의 거리
-- 주소와 설치 위치
-- 운영시간
-- 동시 사용 가능 대수
-- 관리기관과 연락처
-
-충전소의 실시간 작동 여부와 현재 사용 가능 여부는 보장하지 않습니다.
-
-`radiusKm`(기본값 3km)을 벗어난 충전소는 결과에서 제외됩니다. 반경 내 충전소는 거리순으로 정렬한 뒤 최대 3개만 반환됩니다. 데이터 기준일자가 180일을 초과한 충전소는 `dataFreshness: STALE`로 표시되며, 방문 전 운영 여부를 다시 확인하라는 유의사항이 함께 반환됩니다.
-
----
-
-### `get_destination_accessibility`
-
-관광지의 무장애 편의시설 정보를 조회합니다.
-
-사용 예시:
+보폭은 Tool과 외부 API를 직접 연결하지 않고 Application Service와 Repository Port를 사이에 둡니다.
+덕분에 외부 DTO가 핵심 모델로 퍼지는 것을 막고, 사용자 의도에 따른 조합과 부분 실패 처리를
+Application 계층에서 담당합니다.
 
 ```text
-경복궁에 장애인 화장실이 있어?
-전동휠체어로 이용 가능한 편의시설을 알려줘.
+main / bootstrap
+→ MCP Tool
+→ Application Service
+→ Repository Port
+← Infrastructure Adapter
+→ External API
 ```
-
-주요 입력:
-
-```typescript
-{
-  destination: string;
-  travelerType?: TravelerType;
-}
-```
-
-주요 결과:
-
-- 장애인 주차장
-- 접근로
-- 출입구
-- 엘리베이터
-- 장애인 화장실
-- 휠체어 대여
-- 유모차 관련 시설
-- 수유실
-- 확인되지 않은 정보
-
----
-
-### `get_destination_event_risk`
-
-방문일에 관광지 주변에서 진행되는 축제를 조회하고 행사 기반 혼잡 위험을 반환합니다.
-
-사용 예시:
 
 ```text
-이번 주말 경복궁 주변에 축제가 있어?
-행사 때문에 주차가 어려울 가능성이 있을까?
+src/
+├─ bootstrap/       # 서버 생성, 의존성 조립, Tool 등록
+├─ mcp/             # Tool schema와 handler, Widget
+├─ application/     # 사용자 기능과 Repository Port
+├─ infrastructure/  # 공공 API client, DTO, mapper, adapter
+└─ domain/          # 외부 기술에 독립적인 핵심 모델
 ```
 
-주요 입력:
+DB나 사용자별 상태 저장소는 사용하지 않으며, 외부 API 결과는 요청 범위에서만 조합합니다.
+성능 cache는 프로세스 메모리의 제한된 TTL cache이며 사용자 이력을 저장하지 않습니다.
 
-```typescript
-{
-  destination: string;
-  visitDate: string;
-  radiusKm?: number;
-}
-```
+## 실행하기
 
-주요 결과:
+### 요구 환경
 
-- 주변 축제 목록
-- 축제 개최 기간
-- 관광지와 축제 간 거리
-- 행사 기반 혼잡 위험
-- 주차 및 교통 관련 유의사항
+- Node.js 24
+- npm 10 이상
 
-위험 단계는 다음과 같습니다.
-
-```text
-LOW
-MEDIUM
-HIGH
-UNKNOWN
-```
-
-이 값은 실시간 혼잡도가 아니라 축제 기간과 거리를 기반으로 한 위험 신호입니다.
-
----
-
-### `assess_accessible_visit`
-
-편의시설, 날씨, 충전소, 축제 정보를 함께 조회하여 종합 방문 유의사항을 반환합니다.
-하나의 Tool에서 최초 평가용 `SUMMARY`와 후속 상세 설명용 `DETAIL` 응답 모드를 지원합니다.
-
-사용 예시:
-
-```text
-오늘 전동휠체어로 경복궁에 갈 건데 유의사항 알려줘.
-내일 유모차로 불국사에 가도 괜찮을까?
-방문 전에 무엇을 준비해야 해?
-```
-
-주요 입력:
-
-```typescript
-{
-  destination?: string;    // 단일 장소
-  destinations?: string[]; // 여러 후보, 최대 5개
-  visitDate: string;
-  travelerType: TravelerType;
-  radiusKm?: number;
-  responseMode?: "SUMMARY" | "DETAIL"; // 기본값 SUMMARY
-}
-```
-
-- `SUMMARY`: 최초 종합 방문 평가에 사용하며, 단일 관광지 성공 시 compact Kakao Widget을 반환합니다.
-- `DETAIL`: 직전 종합 평가 전체를 더 자세히 설명해 달라는 후속 요청에 사용합니다. 같은
-  `VisitAssessmentService` 결과를 LLM이 자연어로 풀어쓰기 쉬운 상세 context로 반환하며 Widget은
-  포함하지 않습니다.
-
-`DETAIL` 후속 요청에서는 가능한 경우 대화 문맥의 `destination`, `visitDate`, `travelerType`,
-`contentId`를 재사용합니다. 접근성·날씨·문화축제·충전소 중 한 영역만 묻는 요청은 각각의 전용
-Tool을 사용합니다. `destinations` 비교/batch는 기존 compact structured response를 유지합니다.
-
-주요 결과:
-
-- 확정된 관광지 정보
-- 무장애 편의시설
-- 방문일 날씨
-- 주변 전동휠체어 충전소
-- 축제 기반 혼잡 위험
-- 종합 방문 상태
-- 주요 유의사항
-- 확인되지 않은 정보
-- 방문 준비 체크리스트
-- 관리기관에 확인할 질문
-
-종합 방문 상태는 다음 중 하나로 반환합니다.
-
-```text
-LIKELY_ACCESSIBLE
-ACCESSIBLE_WITH_CAUTION
-CHECK_REQUIRED
-INSUFFICIENT_DATA
-```
-
-## 본선 운영 성능 설계
-
-처음 학습할 때는 [가장 쉬운 성능 개선 가이드](./docs/performance/00-easy-start.md)부터 읽고,
-필요한 주제는 [`docs/performance/`](./docs/performance/README.md)에서 찾아볼 수 있습니다.
-
-`assess_accessible_visit`는 기존 단일 `destination` 입력을 유지하며, 여러 후보 비교에는
-`destinations`를 사용합니다. 두 필드는 동시에 보낼 수 없고 batch는 최대 5개입니다. 후보명은
-앞뒤/연속 공백만 정리한 뒤 중복 제거하며, 후보 처리는 최대 2개씩 실행됩니다.
-
-프로세스 메모리 cache는 TTL과 최대 entry를 가진 best-effort LRU입니다. 관광지 검색,
-접근성 상세, 날씨 격자/발표시각, 지역 충전소, 전국 축제 dataset을 cache하며 동일 key의 동시
-miss는 하나의 진행 중 요청을 공유합니다. cache가 비어 있거나 컨테이너/replica별로 공유되지
-않아도 항상 기존 외부 API 경로로 조회합니다.
-
-종합 Tool은 2.7초 전체 deadline을 사용합니다. 후보 또는 개별 source가 실패/timeout이어도 이미
-확보한 결과를 유지하며, 새 retry는 남은 deadline이 충분할 때만 429, 502, 503, 504, timeout,
-일시적 network error에 대해 최대 1회 수행합니다.
-
-## 실행 환경
-
-Production은 기존과 동일하게 컨테이너 외부에서 환경변수를 주입하고 애플리케이션은
-`process.env`만 읽습니다. `.env` loader dependency나 image 내부 `.env`는 사용하지 않습니다.
-
-로컬 실행:
-
-```bash
-npm ci
-npm run build
-npm run start:local
-```
-
-Node 24의 `--env-file=.env`가 `.env`를 `process.env`로 전달합니다. 운영 실행은 계속
-`npm run start:http`입니다.
-
-### 로컬에서 요청 흐름 확인하기
-
-다음 명령은 빌드 후 HTTP 서버를 실행하고, stderr 로그를 터미널과
-`logs/mcp.ndjson`에 함께 남깁니다. 애플리케이션 자체는 파일을 열지 않습니다.
-
-```bash
-npm run dev:observe
-```
-
-다른 터미널에서는 필요한 형태로 로그를 볼 수 있습니다.
-
-```bash
-npm run logs                         # 최근 Tool 실행 요약
-npm run logs -- tail                 # 새 로그 실시간 확인
-npm run logs -- errors               # 오류, 재시도, timeout, 부분 결과
-npm run logs -- weather              # 날씨 source만 확인
-npm run logs -- festival             # 축제 source만 확인
-npm run logs -- charger              # 충전소 source만 확인
-npm run logs -- tourism              # 관광 source만 확인
-npm run logs -- request <requestId>  # 요청 하나의 전체 흐름
-npm run logs -- clear                # 로컬 로그 비우기
-npm run logs -- help                 # 명령 도움말
-```
-
-각 Tool 호출은 하나의 `requestId`를 사용합니다. `tool.start`부터 cache, 외부 API,
-retry, deadline, `tool.summary`까지 같은 ID로 연결되므로 특정 요청만 쉽게 추적할 수 있습니다.
-로그에는 API key, 전체 URL/query, 원본 API 응답, 사용자 입력 전체를 넣지 않습니다.
-
-운영 환경과 유사한 로컬 Docker 실행:
-
-```bash
-docker build -t bopok-mcp .
-docker run --rm -p 3000:3000 --env-file .env bopok-mcp
-```
-
-`.env`와 `.env.*`는 `.gitignore`와 `.dockerignore` 모두에서 제외됩니다.
-
-기본 정적 검증:
-
-```bash
-npm run typecheck
-npm run lint
-npm run build
-```
-
-## Kakao Tools Widget
-
-`assess_accessible_visit`의 `SUMMARY` 단일 관광지 조회가 성공하면 Kakao Tools용 compact ChatKit
-Widget도 함께 제공합니다. 기존 Domain 결과는 `structuredContent`에 유지하고, Widget과 공유용
-Markdown은 `content.text`에 JSON Envelope로 반환합니다. 의도된 구조는 단일 root
-`Card size="lg"`이며 모바일용 요약 정보만 표시합니다. 수동 MCP Inspector와 Kakao Tools Preview
-검증은 아직 수행하지 않았습니다. `Card full`, `Basic` composite, detail-only `collapsed` 패턴은
-현재 사용하지 않으며 `widget.status`도 직접 설정하지 않습니다.
-
-`DETAIL`은 Widget 없이 LLM-friendly detailed context를 `content.text`에 반환합니다. 문화축제는
-전국문화축제표준데이터 범위이므로 모든 지역 행사나 실시간 혼잡 정보가 아니며, 충전소의 실시간
-작동 상태도 제공하지 않습니다. 날씨는 현재 SKY 정보를 수집하지 않으므로 맑음·흐림 같은 상태를
-생성하지 않습니다. 실제 렌더링 확인 방법은
-[Kakao Tools ChatKit Widget 확인 가이드](./docs/kakao-chatkit-widget.md)를 참고하세요.
-
-## 대표 동작 예시
-
-사용자 요청:
-
-```text
-오늘 전동휠체어로 경복궁에 갈 건데 유의사항 알려줘.
-```
-
-선택되는 Tool:
-
-```text
-assess_accessible_visit
-```
-
-Tool 입력 예시:
-
-```json
-{
-  "destination": "경복궁",
-  "visitDate": "2026-06-25",
-  "travelerType": "POWER_WHEELCHAIR",
-  "radiusKm": 3
-}
-```
-
-서버는 편의시설, 날씨, 충전소, 축제 정보를 조회한 뒤 다음 내용을 포함한 구조화된 결과를 반환합니다.
-
-- 전동휠체어 이동에 필요한 편의시설
-- 우천·강풍·고온 등 날씨 주의사항
-- 가까운 충전소와 운영정보
-- 주변 축제에 따른 교통·주차 위험
-- 여러 정보를 결합한 종합 유의사항
-- 출발 전 준비 체크리스트
-
-## 프로젝트 범위
-
-현재 MVP는 관광지 방문 전에 필요한 정보를 제공하는 데 집중합니다.
-
-포함 범위:
-
-- 관광지명 기반 장소 식별
-- 무장애 편의시설 조회
-- 방문일 기준 단기예보 조회와 날씨 위험 판단
-- 주변 충전소 조회
-- 주변 축제 조회
-- 종합 유의사항 생성
-
-포함하지 않는 범위:
-
-- 실시간 유동인구
-- 충전소 실시간 작동 상태
-- 실제 휠체어 이동 경로 안내
-- 도로 턱과 경사도 분석
-- 사용자 계정과 방문 이력
-- 데이터 영구 저장
-
-## 런타임 환경변수
-
-서버는 환경변수 파일을 읽지 않습니다. 배포 환경에서 MCP 서버 컨테이너를 실행할 때
-다음 환경변수를 직접 주입해야 합니다.
-
-필수 환경변수:
+### 환경변수
 
 ```text
 TOUR_API_BASE_URL
@@ -439,38 +128,39 @@ FESTIVAL_API_BASE_URL
 FESTIVAL_API_SERVICE_KEY
 ```
 
-선택 환경변수:
+선택 값으로 `FESTIVAL_API_FULL_SCAN_PAGE_SIZE`, HTTP 실행 시 `PORT`를 사용할 수 있습니다.
+애플리케이션은 `process.env`만 읽으며 `dotenv` 같은 환경변수 파일 loader를 사용하지 않습니다.
+로컬의 `start:local` 명령은 Node.js 내장 옵션으로 `.env` 값을 `process.env`에 주입합니다.
 
-```text
-FESTIVAL_API_FULL_SCAN_PAGE_SIZE
-PORT
+### 설치 및 실행
+
+```bash
+npm ci
+npm run build
 ```
 
-필수 값은 서버 시작 시 검증되며, 누락되면 서버가 시작되지 않습니다. `PORT`는 HTTP 실행
-진입점에서만 사용하며 기본값은 `3000`입니다.
+stdio MCP 서버:
 
-다음 비민감 설정은 컨테이너 환경변수 개수를 줄이기 위해 코드에 고정되어 있으므로 주입하지
+```bash
+node dist/main.js
+```
+
+로컬 Streamable HTTP 서버 (`http://localhost:3000/mcp`):
+
+```bash
+npm run start:local
+```
+
+운영 환경에서는 외부에서 환경변수를 주입한 뒤 `npm run start:http`를 사용합니다.
+
+## 검증
+
+```bash
+npm run typecheck
+npm run lint
+npm run build
+```
+
+요청 단위 로그와 성능 흐름을 로컬에서 확인하려면 `npm run dev:observe`를 실행한 뒤
+`npm run logs`를 사용할 수 있습니다. 로그에는 API key, 인증 query, 원본 API 응답을 남기지
 않습니다.
-
-```text
-EXTERNAL_API_TIMEOUT_MS=1500
-MCP_OVERALL_DEADLINE_MS=2700
-WHEELCHAIR_CHARGER_API_ENDPOINT_PATH=/tn_pubr_public_electr_whlchairhgh_spdchrgr_api
-KMA_WEATHER_API_ENDPOINT_PATH=/getVilageFcst
-TOUR_API_MOBILE_OS=ETC
-TOUR_API_MOBILE_APP=BarrierFreeTrip
-TOUR_API_DEFAULT_NUM_OF_ROWS=10
-FESTIVAL_API_ENDPOINT_PATH=/openapi/tn_pubr_public_cltur_fstvl_api
-FESTIVAL_API_DEFAULT_PER_PAGE=1000
-```
-
-## 기대 효과
-
-이 프로젝트는 분산된 공공데이터를 사용자 목적에 맞게 결합하여 이동약자가 관광지 방문 전 다음 항목을 더 쉽게 판단할 수 있도록 돕습니다.
-
-- 현재 조건으로 방문해도 괜찮은지
-- 어떤 편의시설을 사용할 수 있는지
-- 날씨로 인해 이동 위험이 있는지
-- 전동휠체어 충전 계획이 필요한지
-- 축제로 인해 주차와 교통이 혼잡할 가능성이 있는지
-- 방문 전 어떤 내용을 전화로 확인해야 하는지
