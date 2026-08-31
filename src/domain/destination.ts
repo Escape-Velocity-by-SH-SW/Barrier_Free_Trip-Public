@@ -3,7 +3,13 @@ export interface Coordinates {
   longitude: number;
 }
 
-export type DestinationResolutionStatus = "RESOLVED" | "NOT_FOUND" | "AMBIGUOUS";
+export const touristAttractionContentTypeId = "12";
+
+export type DestinationResolutionStatus =
+  | "RESOLVED"
+  | "NO_DATA"
+  | "AMBIGUOUS_DESTINATION"
+  | "FAILED";
 
 export interface Destination {
   name: string;
@@ -16,6 +22,7 @@ export interface Destination {
 export interface DestinationCandidate extends Destination {
   normalizedName: string;
   matchType: "EXACT" | "PARTIAL";
+  imageUrl?: string;
 }
 
 export interface DestinationResolutionResult {

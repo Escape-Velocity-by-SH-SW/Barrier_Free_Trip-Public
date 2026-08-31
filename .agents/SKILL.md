@@ -20,6 +20,8 @@ Domain 확인
 
 계약 변경이 필요하지 않다면 Domain과 Port를 먼저 수정하지 않는다.
 
+테스트 코드를 위한 `.Test` 파일을 생성하지 않는다.
+
 ## Destination Resolution
 
 관련 파일:
@@ -32,6 +34,7 @@ infrastructure/tourism/*
 ```
 
 순서:
+
 1. `/searchKeyword2` DTO 정의
 2. Client 구현
 3. Mapper로 `DestinationCandidate` 변환
@@ -40,6 +43,7 @@ infrastructure/tourism/*
 6. fixture 테스트
 
 완료 조건:
+
 - `contentId`, `contentTypeId`, 주소, 좌표 반환
 - NOT_FOUND와 AMBIGUOUS 구분
 
@@ -48,6 +52,7 @@ infrastructure/tourism/*
 Tool: `get_destination_accessibility`
 
 순서:
+
 1. Destination 조회
 2. `/detailWithTour2` Client와 DTO
 3. Mapper에서 빈 값 정규화
@@ -57,6 +62,7 @@ Tool: `get_destination_accessibility`
 7. 테스트
 
 주의:
+
 - 빈 값은 `NOT_PROVIDED`
 - 명시적 부재만 `NOT_AVAILABLE`
 
@@ -65,44 +71,54 @@ Tool: `get_destination_accessibility`
 Tool: `get_destination_weather`
 
 순서:
+
 1. Destination 좌표 조회
 2. 위·경도 → 기상청 격자
-3. 발표 기준일·시간 계산
+3. Asia/Seoul 기준 단기예보 발표 기준일·시간 계산
 4. 단기예보 호출
-5. 시간별 예보 정규화
-6. Service 유의사항 생성
-7. Tool 연결
-8. 테스트
+5. `POP`, `PCP`, `PTY`, `TMN`, `TMX`와 방문일 기준 item 필터링
+6. 방문일 일별 예보로 집계
+7. Service에서 강수/폭염/한파 중심 risk와 유의사항 생성
+8. Tool 연결
+9. 테스트
 
 주의:
+
 - Asia/Seoul 기준
-- 예보 범위 밖은 `OUT_OF_RANGE`
+- 단기예보 `base_time`은 `0200`, `0500`, `0800`, `1100`, `1400`, `1700`, `2000`, `2300` 중 발표 10분이 지난 최신 값
+- 과거 방문일 또는 API 응답에 방문일이 없으면 `NO_DATA`
 - 임의 예측 금지
+- Resolver 연동 전에는 MCP Inspector 검증을 위해 Destination 값을 수동 입력받을 수 있다.
 
 ## Charger
 
 Tool: `find_nearby_wheelchair_chargers`
 
 순서:
-1. Destination 좌표 조회
-2. 충전소 API 호출
-3. 좌표 정규화
-4. Haversine 거리 계산
-5. 반경 필터 및 거리순 정렬
-6. Service 유의사항 생성
-7. Tool 연결
-8. 테스트
+
+1. Destination 주소와 좌표 확인
+2. 주소에서 시도명·시군구명 추출
+3. 충전소 API 호출
+4. 좌표 정규화
+5. Haversine 거리 계산
+6. 거리순 정렬 후 상위 결과 선택
+7. Service 유의사항 생성
+8. Tool 연결
+9. 테스트
 
 주의:
+
 - 실시간 상태는 `UNKNOWN`
 - 좌표 없는 데이터 처리
 - 없음과 실패 구분
+- Resolver 연동 전에는 MCP Inspector 검증을 위해 Destination 값을 수동 입력받을 수 있다.
 
 ## Festival Risk
 
 Tool: `get_destination_event_risk`
 
 순서:
+
 1. Destination 좌표와 방문일 확인
 2. 축제 API 호출
 3. 기간과 좌표 정규화
@@ -128,6 +144,7 @@ LOW는 실제로 한산하다는 뜻이 아니다.
 Tool: `assess_accessible_visit`
 
 순서:
+
 1. DestinationResolver 1회 호출
 2. 확정된 Destination을 개별 Service에 전달
 3. `Promise.allSettled` 병렬 실행

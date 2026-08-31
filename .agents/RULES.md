@@ -64,6 +64,7 @@
 ## Client
 
 담당:
+
 - URL과 Query Parameter
 - 인증키
 - HTTP 요청
@@ -72,6 +73,7 @@
 - 원본 DTO 반환
 
 담당하지 않음:
+
 - 사용자 유의사항
 - 위험 판단
 - 종합 결과 조합
@@ -128,6 +130,7 @@ console.error("[weather] request failed");
 ```
 
 로그 금지 항목:
+
 - API Key
 - 인증 Query
 - 전체 요청 URL
@@ -136,21 +139,13 @@ console.error("[weather] request failed");
 ## Security
 
 - 인증키는 환경변수만 사용
-- `.env` 커밋 금지
+- 런타임 환경변수는 컨테이너에서 주입
+- 환경변수 파일 로딩 및 `dotenv` 사용 금지
+- 환경변수 파일 커밋 금지
 - 시작 시 환경변수 검증
 - 입력을 URL 문자열에 직접 연결 금지
 - `URL`, `URLSearchParams` 사용
 - 모든 외부 요청에 timeout 적용
-
-## Tests
-
-- 파일명: `*.test.ts`
-- 테스트명은 행위 중심
-- Unit Test에서 네트워크 호출 금지
-- Adapter Test는 fixture 사용
-- 실제 API 테스트는 기본 테스트에서 제외
-- 버그 수정 시 재현 테스트 추가
-- 경계값과 상태값 우선 검증
 
 ## Formatting
 

@@ -1,5 +1,6 @@
 import type { Coordinates } from "../../domain/destination.js";
 import type { WeatherSourceData } from "../../domain/weather.js";
+import type { OperationContext } from "./operation-context.js";
 
 export interface WeatherQuery {
   coordinates: Coordinates;
@@ -7,5 +8,5 @@ export interface WeatherQuery {
 }
 
 export interface WeatherRepository {
-  getForecast(query: WeatherQuery): Promise<WeatherSourceData>;
+  getForecast(query: WeatherQuery, context?: OperationContext): Promise<WeatherSourceData>;
 }

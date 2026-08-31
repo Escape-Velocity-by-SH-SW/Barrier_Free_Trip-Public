@@ -1,10 +1,15 @@
 node_modules/
 dist/
 coverage/
+logs/
 
 .env
 .env.*
-!.env.example
 
 *.log
 .DS_Store
+
+# 테스트 코드는 로컬에서만 사용하고 저장소에는 커밋하지 않습니다.
+**/*.test.*
+**/*.spec.*
+**/__tests__/

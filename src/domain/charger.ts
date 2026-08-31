@@ -1,31 +1,39 @@
 // 충전소 원본 데이터, 거리 계산 후 결과 정의
 import type { Destination } from "./destination.js";
 
+export type ChargerDataFreshness = "FRESH" | "STALE" | "UNKNOWN";
+
+export interface ChargerOperatingHours {
+  weekdayStart?: string;
+  weekdayEnd?: string;
+  saturdayStart?: string;
+  saturdayEnd?: string;
+  holidayStart?: string;
+  holidayEnd?: string;
+}
+
 export interface ChargerSourceData {
-  id: string;
   name: string;
   address?: string;
-  installationLocation?: string;
+  installationLocationDescription?: string;
   latitude?: number;
   longitude?: number;
-  operatingHours?: string;
-  simultaneousUseCount?: number;
-  managingOrganization?: string;
   phoneNumber?: string;
-  referenceDate?: string;
+  managingOrganization?: string; // 관리기관명
+  referenceDate?: string; // 데이터 기준일자
+  operatingHours?: ChargerOperatingHours;
 }
 
 export interface ChargerSummary {
-  id: string;
   name: string;
   address?: string;
-  installationLocation?: string;
+  installationLocationDescription?: string;
   distanceKm: number;
-  operatingHours?: string;
-  simultaneousUseCount?: number;
   managingOrganization?: string;
   phoneNumber?: string;
   referenceDate?: string;
+  operatingHours?: ChargerOperatingHours;
+  dataFreshness: ChargerDataFreshness;
   realtimeAvailability: "UNKNOWN";
 }
 
@@ -34,5 +42,5 @@ export interface NearbyWheelchairChargerResult {
   destination: Destination;
   radiusKm: number;
   chargers: ChargerSummary[];
-  cautions: string[];
+  cautions: string[]; // 필요한가?
 }
