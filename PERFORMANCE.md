@@ -71,19 +71,18 @@ cache 없이 request마다 반복되었다.
 - Festival: 성공 가능성이 낮은 focused 2-call 경로를 제거했다. 전국 dataset을 1,000건/page로
   가져와 6시간 cache하고 방문일 index를 별도 bounded cache한다. 후보 5개가 같은 날짜면 dataset
   download와 date scan을 공유한다.
-- Deadline: Kakao p99 3,000 ms에 300 ms margin을 둔 absolute 2,700 ms다. Destination 확정 뒤 네
-  source는 `min(2,000 ms, parent remaining - 400 ms reserve)` soft deadline을 공유한다. HTTP attempt
-  timeout은 최대 1,500 ms이고 source/parent deadline보다 길 수 없다. 자세한 구현과 판단은
+- Deadline: Tool 전체 absolute deadline은 2,900 ms다. Destination 확정 뒤 네 source는
+  `min(2,300 ms, parent remaining - 400 ms reserve)` soft deadline을 공유한다. HTTP attempt
+  timeout은 최대 2,500 ms이고 source/parent deadline보다 길 수 없다. 자세한 구현과 판단은
   [Assessment deadline 안정화](./docs/performance/12-assessment-deadline-stabilization.md)를 참고한다.
-- Retry: 최대 1회, 40 ms exponential delay+jitter, 최대 200 ms다. 429/502/503/504, timeout,
-  network error만 대상으로 하며 deadline이 부족하면 시작하지 않는다.
+- Retry: 제한된 Tool 시간 안에서 첫 호출의 응답 기회를 최대화하기 위해 재시도하지 않는다.
 - Partial result: source soft deadline이 늦은 source만 reject하고 기존 `Promise.allSettled`가 해당
   영역을 `FAILED`로 바꾼다. 성공한 영역으로 assessment와 SUMMARY Widget을 hard deadline 전에
   생성한다. Destination 확정 뒤 남은 시간이 reserve 이하라면 새 source 요청을 시작하지 않는다.
 - Circuit breaker/stale cache: 이번에는 미적용했다. replica별 작은 process cache 환경에서 상태
   튜닝과 stale 표시 계약의 복잡도가 이득보다 크고,
-  `min(2,000 ms, parent remaining - 400 ms reserve)` source soft deadline과 2.7초 hard deadline,
-  partial result가 우선적인 장애 격리를 제공한다. 1,500 ms는 source timeout이 아니라 개별 HTTP
+  `min(2,300 ms, parent remaining - 400 ms reserve)` source soft deadline과 2.9초 hard deadline,
+  partial result가 우선적인 장애 격리를 제공한다. 2,500 ms는 source timeout이 아니라 개별 HTTP
   attempt의 최대 timeout이다.
 
 ## 4. Cache matrix

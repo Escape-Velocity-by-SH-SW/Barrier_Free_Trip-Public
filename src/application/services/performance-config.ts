@@ -1,11 +1,11 @@
 export const performanceConfig = {
-  overallDeadlineMs: 2_700,
+  overallDeadlineMs: 2_900,
   responseReserveMs: 400,
-  maxSourceBudgetMs: 2_000,
-  externalApiTimeoutMs: 1_500,
+  maxSourceBudgetMs: 2_300,
+  externalApiTimeoutMs: 2_500,
   maxDestinations: 5,
   destinationConcurrency: 2,
-  retryCount: 1,
+  retryCount: 0,
   retryBaseDelayMs: 40,
   retryMaxDelayMs: 200,
   cache: {

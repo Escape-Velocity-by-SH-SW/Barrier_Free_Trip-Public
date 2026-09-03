@@ -1,5 +1,9 @@
 # Assessment deadline 안정화
 
+> 후속 운영 조정(2026-09-03): 관광 정보 확보 시간을 늘리기 위해 현재 설정은 overall 2,900 ms,
+> source budget 2,300 ms, HTTP attempt 2,500 ms, retry 0회다. 아래 2,700/2,000/1,500 ms 수치와
+> 측정 결과는 최초 안정화 당시의 결정 및 검증 기록으로 보존한다.
+
 ## 1. 결론
 
 `assess_accessible_visit`의 overall hard deadline은 2,700 ms로 유지했다. Destination 확정 뒤 네
